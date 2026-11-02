@@ -250,6 +250,8 @@ export function NodeDrawer({
         detail,
         notes: notes.trim(),
       })
+      // 子任务表单里已经打了标题：直接落成任务（而不是留成草稿）
+      if (childTitle.trim()) addChild()
     }
     onClose()
   }
@@ -807,6 +809,9 @@ export function NodeDrawer({
                   添加（⌘↩）
                 </button>
               </div>
+              <p className="mt-1 text-[10px] leading-snug text-faint">
+                关掉抽屉时，已经打了标题的子任务会自动落成任务
+              </p>
             </div>
           </div>
         </div>
