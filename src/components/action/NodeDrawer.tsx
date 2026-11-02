@@ -91,9 +91,16 @@ export function NodeDrawer({
   /** 抽屉里点选中的子任务：串行新增会接在它的后面（相当于「延长这一串」） */
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
 
-  // 选中的子任务被删掉/换了父节点：清掉选中，避免串行接到看不见的节点上
+  // 默认选中最上面的子任务；选中的被删/换父节点时也回落到最上面那条。
+  // 这样「串行」永远有一个明确的落点，不用先手动点一下。
   useEffect(() => {
-    if (selectedChildId && !kids.some((k) => k.id === selectedChildId)) setSelectedChildId(null)
+    if (!kids.length) {
+      setSelectedChildId(null)
+      return
+    }
+    if (!selectedChildId || !kids.some((k) => k.id === selectedChildId)) {
+      setSelectedChildId(kids[0].id)
+    }
   }, [kids, selectedChildId])
 
 
@@ -473,7 +480,7 @@ export function NodeDrawer({
                   {group.map((k) => (
                     <div
                       key={k.id}
-                      onClick={() => setSelectedChildId(selectedChildId === k.id ? null : k.id)}
+                      onClick={() => setSelectedChildId(k.id)}
                       onContextMenu={(e) => {
                         // mac 触控板双指按压 = contextmenu：打开「独立成线」菜单
                         e.preventDefault()
