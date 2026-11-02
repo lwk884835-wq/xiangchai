@@ -24,6 +24,14 @@ export interface FocusItem {
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+export type ClipboardMode = 'subtree' | 'chain'
+export interface RouteClipboard {
+  mode: ClipboardMode
+  /** 复制时的快照（深拷贝，和源路线解耦） */
+  nodes: ActionNode[]
+  sourceBoardId: string
+}
+
 interface ActionState {
   boards: ActionBoard[]
   activeBoardId: string | null
@@ -45,6 +53,18 @@ interface ActionState {
   ) => string
   updateNode: (id: string, patch: Partial<ActionNode>, boardId?: string) => void
   toggleNode: (id: string, boardId?: string) => void
+  /** 复制来的卡片（不落盘，刷新清空） */
+  clipboard: RouteClipboard | null
+  /**
+   * 复制卡片：mode='subtree' 它和所有子任务；mode='chain' 再加上同一串里后面所有步骤。
+   * 返回复制了多少张卡。
+   */
+  copyNodes: (id: string, mode: ClipboardMode, boardId?: string) => number
+  /**
+   * 粘贴：parentId 指定 = 变成该卡片的并行子任务线；不指定/为 null = 作为当前路线的新目标。
+   * 返回新建了多少张卡。
+   */
+  pasteNodes: (opts?: { boardId?: string; parentId?: string | null }) => number
   /** 撤销栈：勾选 / 删除 / 拖拽前各存一份整路线快照，删错了能整体退回去 */
   history: { label: string; boards: ActionBoard[]; activeBoardId: string | null }[]
   /** 撤回上一步，返回那一步的名字（勾选/删除/拖拽…）；没有可撤回的返回 null */
@@ -123,6 +143,7 @@ export const useActions = create<ActionState>()(
         focusItems: [],
         collapsed: {},
         history: [],
+        clipboard: null,
 
         addBoard: (b) => {
           const id = `bd-${uid()}`
@@ -472,6 +493,106 @@ export const useActions = create<ActionState>()(
           })
         },
 
+        copyNodes: (id, mode, boardId) => {
+          const board = boardOf(boardId)
+          if (!board) return 0
+          const nodes = board.nodes
+          const node = nodes.find((n) => n.id === id)
+          if (!node) return 0
+
+          const picked = new Set<string>([id])
+          const collect = (rootId: string) => {
+            for (const n of nodes) {
+              if (n.parentId === rootId && !picked.has(n.id)) {
+                picked.add(n.id)
+                collect(n.id)
+              }
+            }
+          }
+          collect(id)
+
+          // chain：同一串（同父级 + 同 branch）里排在它后面的步骤，连同各自子树
+          if (mode === 'chain') {
+            const mates = nodes.filter(
+              (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+            )
+            const at = mates.findIndex((n) => n.id === id)
+            for (const f of at >= 0 ? mates.slice(at + 1) : []) {
+              // collect 只收「子节点」，串里后面的兄弟要自己先加进去
+              if (!picked.has(f.id)) {
+                picked.add(f.id)
+                collect(f.id)
+              }
+            }
+          }
+
+          const snapshot = nodes
+            .filter((n) => picked.has(n.id))
+            .map((n) => JSON.parse(JSON.stringify(n)) as ActionNode)
+          set({ clipboard: { mode, nodes: snapshot, sourceBoardId: board.id } })
+          return snapshot.length
+        },
+
+        pasteNodes: (opts) => {
+          const s0 = get()
+          const clip = s0.clipboard
+          if (!clip || !clip.nodes.length) return 0
+          const targetBoard =
+            s0.boards.find((b) => b.id === (opts?.boardId ?? s0.activeBoardId)) ?? null
+          if (!targetBoard) return 0
+          const targetNode = opts?.parentId
+            ? (targetBoard.nodes.find((n) => n.id === opts.parentId) ?? null)
+            : null
+          if (opts?.parentId && !targetNode) return 0
+
+          pushHistory('粘贴')
+
+          const idMap = new Map<string, string>()
+          for (const n of clip.nodes) idMap.set(n.id, `an-${uid()}`)
+          // 快照里没有父节点（或父节点不在快照里）的，就是这次粘贴的顶层
+          const topIds = new Set(
+            clip.nodes.filter((n) => !n.parentId || !idMap.has(n.parentId)).map((n) => n.id),
+          )
+          const firstTop = clip.nodes.find((n) => topIds.has(n.id))
+          const headLevel = firstTop?.level ?? 1
+          const delta = targetNode ? targetNode.level + 1 - headLevel : 1 - headLevel
+
+          // 贴到卡片上：整串变成目标的一条新的并行子线
+          let destBranch = ''
+          if (targetNode) {
+            const used = new Set(
+              targetBoard.nodes.filter((n) => n.parentId === targetNode.id).map((n) => n.branch || ''),
+            )
+            let bi = 1
+            while (used.has(`并行${bi}`)) bi++
+            destBranch = `并行${bi}`
+          }
+
+          const created: ActionNode[] = clip.nodes.map((n) => {
+            const isTop = topIds.has(n.id)
+            const deps = (n.deps ?? [])
+              .map((d) => idMap.get(d))
+              .filter((d): d is string => !!d)
+            return {
+              ...n,
+              id: idMap.get(n.id)!,
+              parentId: isTop
+                ? targetNode
+                  ? targetNode.id
+                  : null
+                : (idMap.get(n.parentId as string) ?? null),
+              level: Math.max(1, n.level + delta),
+              branch: isTop ? (targetNode ? destBranch : '') : n.branch || '',
+              deps,
+              pinned: false,
+              createdAt: Date.now(),
+            }
+          })
+
+          patchBoard(targetBoard.id, (b) => ({ ...b, nodes: [...b.nodes, ...created] }))
+          return created.length
+        },
+
         moveSubtree: (id, targetId) => {
           if (id === targetId) return
           const s0 = get()
@@ -768,6 +889,7 @@ export const useActions = create<ActionState>()(
             boards.find((b) => b.id === p.activeBoardId)?.id ?? boards[0]?.id ?? null,
           // 撤销栈不落盘：恢复上一次的删除快照会跨刷新出错
           history: [],
+          clipboard: null,
         }
       },
     },

@@ -33,6 +33,7 @@ export function NodeDrawer({
   const detachNode = useActions((s) => s.detachNode)
   const deleteNode = useActions((s) => s.deleteNode)
   const reorderChild = useActions((s) => s.reorderChild)
+  const pasteNodes = useActions((s) => s.pasteNodes)
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const moveNode = useActions((s) => s.moveNode)
@@ -207,6 +208,23 @@ export function NodeDrawer({
     selectedChildId,
     node?.id,
   ])
+
+  // 抽屉打开时 ⌘V：把剪贴板里的卡片粘成当前任务的并行子任务
+  useEffect(() => {
+    if (!node) return
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'v') return
+      // 焦点在输入框里时，让浏览器正常粘贴文字
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      e.preventDefault()
+      const n = pasteNodes({ parentId: node.id, boardId: activeBoardId ?? undefined })
+      if (n) toast(`已粘贴 ${n} 张卡到「${node.title}」下面`)
+      else toast('剪贴板是空的')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [node, activeBoardId, pasteNodes, toast])
 
   if (!node) return null
 

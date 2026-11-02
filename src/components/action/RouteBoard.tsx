@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, ListChecks, Plus } from 'lucide-react'
+import { ChevronRight, ClipboardPaste, Copy, ListChecks, Plus } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -93,6 +93,12 @@ function elbow(x1: number, y1: number, x2: number, y2: number, outX: number): Se
 
 
 /** 拖拽回调：卡片和它下面的所有 Column 共用一份 */
+interface CtxMenu {
+  nodeId?: string
+  x: number
+  y: number
+}
+
 interface Dnd {
   dragId: string | null
   dropId: string | null
@@ -112,6 +118,7 @@ function Column({
   onPin,
   onToggleCollapse,
   dnd,
+  onCardContextMenu,
 }: {
   node: ActionNode
   nodes: ActionNode[]
@@ -121,6 +128,7 @@ function Column({
   onPin: (id: string, pinned: boolean) => void
   onToggleCollapse: (id: string) => void
   dnd: Dnd
+  onCardContextMenu: (id: string, e: React.MouseEvent) => void
 }) {
   const kids = useMemo(() => childrenOf(nodes, node.id), [nodes, node.id])
   const isCollapsed = collapsed.includes(node.id)
@@ -162,6 +170,7 @@ function Column({
         onDragOver={dnd.onDragOver}
         onDragLeave={dnd.onDragLeave}
         onDrop={dnd.onDrop}
+        onContextMenu={onCardContextMenu}
       />
       {visible.length > 0 && (
         // 中屏把层间距收一收，同样的窗口能多看到一层；超宽屏再放开
@@ -196,6 +205,7 @@ function Column({
                       onPin={onPin}
                       onToggleCollapse={onToggleCollapse}
                       dnd={dnd}
+                      onCardContextMenu={onCardContextMenu}
                     />
                   </Fragment>
                 ))}
@@ -227,7 +237,53 @@ export const RouteBoard = memo(function RouteBoard({
   onAddGoal?: () => void
 }) {
   const moveSubtree = useActions((s) => s.moveSubtree)
+  const copyNodes = useActions((s) => s.copyNodes)
+  const pasteNodes = useActions((s) => s.pasteNodes)
+  const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
+  /** 右键菜单：nodeId 为空 = 点在空白画布上 */
+  const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
+  /** 键盘复制/粘贴时，光标停在哪个卡片上 */
+  const hoveredRef = useRef<string | null>(null)
+
+  const openCtxMenu = (nodeId: string | undefined, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ nodeId, x: e.clientX, y: e.clientY })
+  }
+
+  const doCopy = (id: string, mode: 'subtree' | 'chain') => {
+    const n = copyNodes(id, mode)
+    if (n) toast(`已复制 ${n} 张卡${mode === 'chain' ? '（含后面的步骤）' : '（含子任务）'}`)
+    setCtxMenu(null)
+  }
+
+  const doPaste = (parentId?: string | null) => {
+    const n = pasteNodes({ parentId: parentId ?? null })
+    if (n) toast(`已粘贴 ${n} 张卡`)
+    else toast('剪贴板是空的')
+    setCtxMenu(null)
+  }
+
+  // ⌘C / ⌘V：抽屉开着时交给抽屉自己处理（粘贴到当前任务下）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (document.querySelector('div.fixed.inset-0.z-40')) return
+      const key = e.key.toLowerCase()
+      if (key === 'c') {
+        const id = hoveredRef.current
+        if (!id) return
+        e.preventDefault()
+        doCopy(id, 'subtree')
+      } else if (key === 'v') {
+        e.preventDefault()
+        doPaste(hoveredRef.current)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
   /** 拖拽中的节点 id：dragover 用 ref，避免 state 更新延迟到下一帧才生效 */
   const dragIdRef = useRef<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
@@ -527,6 +583,14 @@ export const RouteBoard = memo(function RouteBoard({
           el.scrollBy({ left: e.key === 'ArrowRight' ? 240 : -240, behavior: 'smooth' })
         }}
         aria-label="行动路线图，可以用左右方向键横向滚动"
+        onMouseOver={(e) => {
+          const el = (e.target as HTMLElement).closest('[data-node-id]')
+          hoveredRef.current = el ? el.getAttribute('data-node-id') : null
+        }}
+        onContextMenu={(e) => {
+          if ((e.target as HTMLElement).closest('[data-node-id]')) return
+          openCtxMenu(undefined, e)
+        }}
         className="overflow-x-auto rounded-[12px] px-2 pt-4 pb-4 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:outline-none"
       >
         <div ref={wrapRef} className="relative min-w-max px-2">
@@ -563,6 +627,7 @@ export const RouteBoard = memo(function RouteBoard({
                   onPin={onPin}
                   onToggleCollapse={onToggleCollapse}
                   dnd={dnd}
+                  onCardContextMenu={openCtxMenu}
                 />
               </Fragment>
             ))}
@@ -588,6 +653,79 @@ export const RouteBoard = memo(function RouteBoard({
           <ChevronRight size={16} />
         </button>
       )}
+
+      {ctxMenu && (() => {
+        const target = ctxMenu.nodeId ? nodes.find((n) => n.id === ctxMenu.nodeId) : null
+        return (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setCtxMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setCtxMenu(null)
+              }}
+            />
+            <div
+              className="fixed z-50 w-[238px] overflow-hidden rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3 anim-pop"
+              style={{
+                left: Math.min(ctxMenu.x, window.innerWidth - 254),
+                top: Math.min(ctxMenu.y, window.innerHeight - 250),
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {target ? (
+                <>
+                  <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">
+                    {target.title}
+                  </div>
+                  <button
+                    onClick={() => doCopy(target.id, 'subtree')}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                  >
+                    <Copy size={12} className="shrink-0" />
+                    复制这张（含子任务）
+                  </button>
+                  <button
+                    onClick={() => doCopy(target.id, 'chain')}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                  >
+                    <Copy size={12} className="shrink-0" />
+                    复制这一串（含后面步骤）
+                  </button>
+                  <div className="my-1 h-px bg-line/70" />
+                  <button
+                    disabled={!clipboard}
+                    onClick={() => doPaste(target.id)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:text-faint"
+                  >
+                    <ClipboardPaste size={12} className="shrink-0" />
+                    粘贴为它的并行子任务
+                  </button>
+                  <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
+                    效果和把卡片拖到它上面一样，接在它下面单独成一条线
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="label px-2 pt-1 pb-1.5">空白处</div>
+                  <button
+                    disabled={!clipboard}
+                    onClick={() => doPaste(null)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:text-faint"
+                  >
+                    <ClipboardPaste size={12} className="shrink-0" />
+                    粘贴为新的目标
+                  </button>
+                  <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
+                    把剪贴板里的卡片放到当前路线顶层
+                  </p>
+                </>
+              )}
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 })

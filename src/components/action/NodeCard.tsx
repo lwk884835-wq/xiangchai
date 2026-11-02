@@ -53,6 +53,7 @@ export const NodeCard = memo(function NodeCard({
   onDragOver,
   onDragLeave,
   onDrop,
+  onContextMenu,
 }: {
   node: ActionNode
   onOpen: (id: string) => void
@@ -72,6 +73,7 @@ export const NodeCard = memo(function NodeCard({
   onDragOver?: (id: string, e: React.DragEvent) => void
   onDragLeave?: (id: string, e: React.DragEvent) => void
   onDrop?: (id: string, e: React.DragEvent) => void
+  onContextMenu?: (id: string, e: React.MouseEvent) => void
 }) {
   const st = styleOf(node.level)
   return (
@@ -83,6 +85,7 @@ export const NodeCard = memo(function NodeCard({
       onDragOver={(e) => onDragOver?.(node.id, e)}
       onDragLeave={(e) => onDragLeave?.(node.id, e)}
       onDrop={(e) => onDrop?.(node.id, e)}
+      onContextMenu={(e) => onContextMenu?.(node.id, e)}
       className={cn(
         'lift group relative shrink-0 rounded-[16px] border',
         st.wrap,
