@@ -207,6 +207,8 @@ export const useActions = create<ActionState>()(
             title: input.title,
             purpose: input.purpose ?? '',
             detail: input.detail ?? '',
+            // 其他批注：纯记录，不参与依赖/勾选逻辑
+            notes: input.notes ?? '',
             level: input.level,
             parentId: input.parentId ?? null,
             branch,

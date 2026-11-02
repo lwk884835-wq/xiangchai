@@ -86,7 +86,7 @@ export function NodeDrawer({
   const [childTitle, setChildTitle] = useState('')
   const [childPurpose, setChildPurpose] = useState('')
   const [childDetail, setChildDetail] = useState('')
-  const [childBranch, setChildBranch] = useState('')
+  const [childNotes, setChildNotes] = useState('')
   // 默认串行：往一棵计划里加子任务，绝大多数是「接着上一步做」
   const [childParallel, setChildParallel] = useState(false)
   const [childAtStart, setChildAtStart] = useState(false)
@@ -112,7 +112,7 @@ export function NodeDrawer({
     title: string
     purpose: string
     detail: string
-    branch: string
+    notes: string
     parallel: boolean
     atStart: boolean
     selectedChildId: string | null
@@ -161,13 +161,13 @@ export function NodeDrawer({
     setPurpose(node.purpose)
     setDetail(node.detail)
     setNotes(node.notes ?? '')
-    // 路线名留空 = 自动：串行沿用父级那条线，并行单独分一条（addNode 里处理）
+    // 串行沿用父级那条线，并行单独分一条（addNode 里处理）
     const draft = readDraft()
-    if (draft && (draft.title || draft.purpose || draft.detail || draft.branch)) {
+    if (draft && (draft.title || draft.purpose || draft.detail || draft.notes)) {
       setChildTitle(draft.title ?? '')
       setChildPurpose(draft.purpose ?? '')
       setChildDetail(draft.detail ?? '')
-      setChildBranch(draft.branch ?? '')
+      setChildNotes(draft.notes ?? '')
       setChildParallel(!!draft.parallel)
       setChildAtStart(!!draft.atStart)
       setSelectedChildId(draft.selectedChildId ?? null)
@@ -176,7 +176,7 @@ export function NodeDrawer({
       setChildTitle('')
       setChildPurpose('')
       setChildDetail('')
-      setChildBranch('')
+      setChildNotes('')
       setChildParallel(false)
       setChildAtStart(false)
     }
@@ -191,13 +191,13 @@ export function NodeDrawer({
       title: childTitle,
       purpose: childPurpose,
       detail: childDetail,
-      branch: childBranch,
+      notes: childNotes,
       parallel: childParallel,
       atStart: childAtStart,
       selectedChildId,
     }
     const empty =
-      !draft.title && !draft.purpose && !draft.detail && !draft.branch && !draft.parallel && !draft.atStart
+      !draft.title && !draft.purpose && !draft.detail && !draft.notes && !draft.parallel && !draft.atStart
     if (empty) clearDraft()
     else writeDraft(draft)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,7 +205,7 @@ export function NodeDrawer({
     childTitle,
     childPurpose,
     childDetail,
-    childBranch,
+    childNotes,
     childParallel,
     childAtStart,
     selectedChildId,
@@ -337,6 +337,7 @@ export function NodeDrawer({
       title: childTitle.trim(),
       purpose: childPurpose.trim(),
       detail: childDetail.trim(),
+      notes: childNotes.trim(),
       level: node.level + 1,
       parentId: node.id,
     }
@@ -344,9 +345,9 @@ export function NodeDrawer({
     let newId: string
 
     if (childParallel) {
-      newId = addNode({ ...base, branch: childBranch.trim(), parallel: true, deps: [] })
+      newId = addNode({ ...base, branch: '', parallel: true, deps: [] })
     } else if (selected) {
-      const branch = childBranch.trim() || selected.branch || node.branch || ''
+      const branch = selected.branch || node.branch || ''
       const mates = kids.filter((k) => (k.branch || '') === (selected.branch || ''))
       const at = mates.findIndex((k) => k.id === selected.id)
       const next = at >= 0 ? (mates[at + 1] ?? null) : null
@@ -372,7 +373,7 @@ export function NodeDrawer({
         if (next) updateNode(next.id, { deps: [newId] })
       }
     } else {
-      const branch = childBranch.trim() || node.branch || ''
+      const branch = node.branch || ''
       const mates = kids.filter((k) => (k.branch || '') === branch)
       if (childAtStart) {
         const first = mates[0] ?? null
@@ -393,6 +394,7 @@ export function NodeDrawer({
     setChildTitle('')
     setChildPurpose('')
     setChildDetail('')
+    setChildNotes('')
     clearDraft()
     // 选中新任务：连续添加时就自然往后延长这一串
     setSelectedChildId(newId)
@@ -853,13 +855,19 @@ export function NodeDrawer({
                 }}
                 className="field resize-none text-[11.5px] leading-[17px]"
               />
+              <input
+                value={childNotes}
+                onChange={(e) => setChildNotes(e.target.value)}
+                placeholder="其他批注（选填：想到什么记什么，不参与任务逻辑）"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    addChild()
+                  }
+                }}
+                className="field h-8 text-[11.5px]"
+              />
               <div className="flex flex-wrap items-center gap-1.5">
-                <input
-                  value={childBranch}
-                  onChange={(e) => setChildBranch(e.target.value)}
-                  placeholder="路线名（可空）"
-                  className="field h-7 w-[104px] px-2 py-0 text-[11px]"
-                />
                 <button
                   onClick={() => setChildParallel(!childParallel)}
                   className={cn(
