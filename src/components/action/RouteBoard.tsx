@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, ClipboardPaste, Copy, ListChecks, Plus } from 'lucide-react'
+import { ChevronRight, ClipboardPaste, Copy, ListChecks, Plus, Trash2 } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -239,6 +239,7 @@ export const RouteBoard = memo(function RouteBoard({
   const moveSubtree = useActions((s) => s.moveSubtree)
   const copyNodes = useActions((s) => s.copyNodes)
   const pasteNodes = useActions((s) => s.pasteNodes)
+  const deleteNode = useActions((s) => s.deleteNode)
   const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
   /** 右键菜单：nodeId 为空 = 点在空白画布上 */
@@ -607,6 +608,39 @@ export const RouteBoard = memo(function RouteBoard({
                   <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
                     效果和把卡片拖到它上面一样，接在它下面单独成一条线
                   </p>
+                  <div className="my-1 h-px bg-line/70" />
+                  <button
+                    onClick={() => {
+                      deleteNode(target.id, 'only')
+                      toast('已删掉这条，后面一步接回前一步')
+                      setCtxMenu(null)
+                    }}
+                    className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Trash2 size={12} className="mt-[3px] shrink-0" />
+                    <span>
+                      删掉这条（子任务一起删）
+                      <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                        后面一步自动接回前一步
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteNode(target.id, 'cascade')
+                      toast('已删掉它和后面整串')
+                      setCtxMenu(null)
+                    }}
+                    className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Trash2 size={12} className="mt-[3px] shrink-0" />
+                    <span>
+                      删掉它和后面整串
+                      <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                        后面的步骤不会保留
+                      </span>
+                    </span>
+                  </button>
                 </>
               ) : (
                 <>
