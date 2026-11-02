@@ -332,6 +332,30 @@ export const RouteBoard = memo(function RouteBoard({
     const visible = nodes.filter((n) => rectOf(n.id) !== null)
     const visibleIds = new Set(visible.map((n) => n.id))
 
+    /**
+     * 一张卡「子树主线」的末端：沿主线一路往右下走到底。
+     * 串行链里上一张卡如果展开了子树，它的下一步其实排在整棵子树后面，
+     * 连接线得从子树末端接过去，不能直接从上一张卡横跨子树画到下一步（会穿过子卡）。
+     */
+    const tailOf = (n: ActionNode): ActionNode => {
+      let cur = n
+      for (let guard = 0; guard < 50; guard++) {
+        const kids = childrenOf(nodes, cur.id).filter((k) => visibleIds.has(k.id))
+        if (!kids.length) return cur
+        const groups = new Map<string, ActionNode[]>()
+        for (const k of kids) {
+          const key = k.branch || ''
+          groups.set(key, [...(groups.get(key) ?? []), k])
+        }
+        const mainKey = groups.has('主线') ? '主线' : [...groups.keys()][0]
+        const chain = groups.get(mainKey) ?? kids
+        const next = chain[chain.length - 1] ?? kids[0]
+        if (!next || next.id === cur.id) return cur
+        cur = next
+      }
+      return cur
+    }
+
     // 顶层目标之间的连接，三种情况：
     //  a) 前一个目标有展开的子链 → 从主线末端用「带线箭头」接到下一个目标
     //  b) 前一个目标的主线收起来了 → 从那个收起来的节点接
@@ -427,7 +451,22 @@ export const RouteBoard = memo(function RouteBoard({
           const a = rectOf(g[i - 1].id)
           const b = rectOf(g[i].id)
           if (!a || !b) continue
-          // 同一串里相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，
+          const prevNode = g[i - 1]
+          const tail = tailOf(prevNode)
+          if (tail.id !== prevNode.id) {
+            /*
+              上一张卡有展开的子树：它的下一步在整棵子树后面。
+              以前还是按「相邻同级」直接画一个 V，V 会落在子卡中间（看起来像
+              子卡之间的连接，链条就断了）。现在从子树末端用带线箭头接到下一步。
+            */
+            const t = rectOf(tail.id)
+            if (t) {
+              out.push(...elbow(t.right, t.cy, b.left, b.cy, t.right + TRUNK_INSET))
+              out.push({ d: chevron(centeredTip(t.right, b.left), b.cy), tone: 'tip' })
+              continue
+            }
+          }
+          // 真正相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，
           // 卡片高度不同时也不会看着偏上/偏下
           out.push({
             d: vArrow(centeredTip(a.right, b.left), (a.cy + b.cy) / 2),
