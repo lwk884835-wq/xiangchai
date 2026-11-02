@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Check, Link2, Pin, Trash2, Unlink, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Link2, Pencil, Pin, Trash2, Unlink, X } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, actionNodeContext, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -99,6 +99,9 @@ export function NodeDrawer({
   /** 抽屉里拖拽调整子任务顺序 / 并入别的分线 */
   const [dragChildId, setDragChildId] = useState<string | null>(null)
   const [dropHint, setDropHint] = useState<{ id: string; pos: 'before' | 'after' } | null>(null)
+  /** 子任务重命名：正在改哪一行的标题 + 草稿值（右键菜单里进来） */
+  const [renameId, setRenameId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
 
   /*
     子任务草稿：在「子任务标题 / 目的 / 具体怎么做」里打了字、但没点添加就关抽屉，
@@ -291,6 +294,29 @@ export function NodeDrawer({
     onClose()
   }
 
+  /**
+   * 子任务重命名（右键菜单 → 重命名）：那一行的标题原地变成输入框。
+   * Enter / 失焦保存，Esc 放弃；Esc 先于 blur 把状态清空，避免 blur 又拿旧值存一次。
+   */
+  const startRename = (id: string, curTitle: string) => {
+    setRenameId(id)
+    setRenameDraft(curTitle)
+  }
+  const commitRename = () => {
+    if (!renameId) return
+    const next = renameDraft.trim()
+    if (next && next !== kids.find((k) => k.id === renameId)?.title) {
+      updateNode(renameId, { title: next })
+      toast(`已改名为「${next}」`)
+    }
+    setRenameId(null)
+    setRenameDraft('')
+  }
+  const cancelRename = () => {
+    setRenameId(null)
+    setRenameDraft('')
+  }
+
   const addChild = () => {
     if (!childTitle.trim()) return
     // 如果父节点是折叠的，先展开，不然加了看不见。
@@ -382,7 +408,7 @@ export function NodeDrawer({
           const group = kidGroups.find((g) => g.some((k) => k.id === menu.nodeId))
           const lone = !group || group.length <= 1
           const x = Math.min(menu.x, window.innerWidth - 236)
-          const y = Math.min(menu.y, window.innerHeight - 150)
+          const y = Math.min(menu.y, window.innerHeight - 190)
           return (
             <>
               <div
@@ -404,6 +430,17 @@ export function NodeDrawer({
                 onContextMenu={(e) => e.preventDefault()}
               >
                 <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">{target?.title}</div>
+                <button
+                  onClick={() => {
+                    if (!target) return
+                    startRename(target.id, target.title)
+                    setMenu(null)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                >
+                  <Pencil size={12} className="shrink-0" />
+                  重命名
+                </button>
                 <button
                   onClick={() => {
                     if (!target || lone) return
@@ -660,7 +697,8 @@ export function NodeDrawer({
                   {group.map((k) => (
                     <div
                       key={k.id}
-                      draggable
+                      // 正在改名的这一行先别拖：输入框里选文字会被拖拽抢走
+                      draggable={renameId !== k.id}
                       onDragStart={(e) => {
                         setDragChildId(k.id)
                         e.dataTransfer.setData('application/x-child-node', k.id)
@@ -732,7 +770,32 @@ export function NodeDrawer({
                       >
                         {k.done && <Check size={8} strokeWidth={3} />}
                       </button>
-                      <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{k.title}</span>
+                      {renameId === k.id ? (
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onBlur={commitRename}
+                          onKeyDown={(e) => {
+                            e.stopPropagation()
+                            if (e.nativeEvent.isComposing) return
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              commitRename()
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              cancelRename()
+                            }
+                          }}
+                          className="field h-[22px] min-w-0 flex-1 px-1 text-[12px]"
+                        />
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{k.title}</span>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
