@@ -237,6 +237,13 @@ export function NodeDrawer({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={() => updateNode(node.id, { title: title.trim() || node.title })}
+              onKeyDown={(e) => {
+                // 回车就直接保存并关掉抽屉（输入法组字时的回车不算）
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  commitEdits()
+                }
+              }}
               className="field mt-1"
             />
           </div>
@@ -249,6 +256,12 @@ export function NodeDrawer({
               onBlur={() => updateNode(node.id, { purpose })}
               rows={2}
               placeholder="这一块是为了什么"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  commitEdits()
+                }
+              }}
               className="field mt-1 resize-none text-[12px] leading-[1.7]"
             />
           </div>
@@ -261,6 +274,12 @@ export function NodeDrawer({
               onBlur={() => updateNode(node.id, { detail })}
               rows={5}
               placeholder="具体动作、交付物、验收标准"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  commitEdits()
+                }
+              }}
               className="field mt-1 resize-none text-[12px] leading-[1.75]"
             />
           </div>
@@ -313,15 +332,24 @@ export function NodeDrawer({
                 value={childTitle}
                 onChange={(e) => setChildTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addChild()
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    e.preventDefault()
+                    addChild()
+                  }
                 }}
-                placeholder="子任务标题"
+                placeholder="子任务标题（回车直接添加）"
                 className="field h-8 text-[12px]"
               />
               <input
                 value={childPurpose}
                 onChange={(e) => setChildPurpose(e.target.value)}
                 placeholder="目的（选填：为什么要做这个）"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    addChild()
+                  }
+                }}
                 className="field h-8 text-[11.5px]"
               />
               <textarea
@@ -329,6 +357,12 @@ export function NodeDrawer({
                 onChange={(e) => setChildDetail(e.target.value)}
                 rows={2}
                 placeholder="具体怎么做（选填：动作、产出物、怎么算完成）"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    addChild()
+                  }
+                }}
                 className="field resize-none text-[11.5px] leading-[1.6]"
               />
               <div className="flex flex-wrap items-center gap-1.5">
@@ -399,6 +433,7 @@ export function NodeDrawer({
             <Trash2 size={12} />
             删掉这个
           </button>
+          <span className="shrink-0 text-[10px] text-faint">回车 / ⌘回车 保存</span>
           <button
             onClick={commitEdits}
             className="flex h-[26px] items-center gap-1 rounded-[8px] bg-ink px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
