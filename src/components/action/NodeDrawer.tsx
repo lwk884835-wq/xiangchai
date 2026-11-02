@@ -567,7 +567,7 @@ export function NodeDrawer({
                   commitEdits()
                 }
               }}
-              className="field mt-1 resize-none text-[12px] leading-[1.7]"
+              className="field mt-1 resize-none text-[12px] leading-[18px]"
             />
           </div>
 
@@ -585,7 +585,7 @@ export function NodeDrawer({
                   commitEdits()
                 }
               }}
-              className="field mt-1 resize-none text-[12px] leading-[1.75]"
+              className="field mt-1 resize-none text-[12px] leading-[18px]"
             />
           </div>
 
@@ -603,7 +603,7 @@ export function NodeDrawer({
                   commitEdits()
                 }
               }}
-              className="field mt-1 resize-none text-[12px] leading-[1.75]"
+              className="field mt-1 resize-none text-[12px] leading-[18px]"
             />
           </div>
 
@@ -770,7 +770,7 @@ export function NodeDrawer({
                     addChild()
                   }
                 }}
-                className="field resize-none text-[11.5px] leading-[1.6]"
+                className="field resize-none text-[11.5px] leading-[17px]"
               />
               <div className="flex flex-wrap items-center gap-1.5">
                 <input
