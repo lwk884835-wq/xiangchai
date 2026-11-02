@@ -117,6 +117,10 @@ export function BoardList() {
 
   const live = boards.filter((b) => !b.archived)
   const archived = boards.filter((b) => b.archived)
+  /** 收起态显示当前路线名（比「路线 N」直观） */
+  const activeBoard = boards.find((b) => b.id === activeId) ?? live[0] ?? null
+  const railTitle = activeBoard?.jobTitle?.trim() || '路线'
+  const railTitleShort = railTitle.length > 14 ? `${railTitle.slice(0, 14)}…` : railTitle
 
   const create = () => {
     const title = draft.trim() || '新路线'
@@ -147,13 +151,16 @@ export function BoardList() {
       {!open ? (
         <button
           onClick={() => setOpenPersist(true)}
-          title="展开路线列表"
-          aria-label="展开路线列表"
+          title={`展开路线列表（当前：${railTitle}）`}
+          aria-label={`展开路线列表（当前路线：${railTitle}）`}
           className="flex w-full flex-1 flex-col items-center gap-2 pt-3 text-faint transition-colors hover:bg-surface-3 hover:text-ink"
         >
-          <PanelRightOpen size={14} />
-          <span className="text-[11px] tracking-[.14em] whitespace-nowrap [writing-mode:vertical-rl]">
-            路线 {live.length}
+          <PanelRightOpen size={14} className="shrink-0" />
+          <span
+            className="min-h-0 text-[11px] leading-none tracking-[.14em] [writing-mode:vertical-rl] max-h-[calc(100%-48px)] overflow-hidden"
+            title={railTitle}
+          >
+            {railTitleShort}
           </span>
         </button>
       ) : (
