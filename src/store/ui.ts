@@ -4,9 +4,6 @@ interface UiState {
   toast: string | null
   showToast: (msg: string) => void
   clearToast: () => void
-  /** 左侧路线助手面板是否展开 */
-  agentOpen: boolean
-  setAgentOpen: (v: boolean) => void
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -20,6 +17,4 @@ export const useUi = create<UiState>((set) => ({
     timer = setTimeout(() => set({ toast: null }), 2600)
   },
   clearToast: () => set({ toast: null }),
-  agentOpen: true,
-  setAgentOpen: (v) => set({ agentOpen: v }),
 }))

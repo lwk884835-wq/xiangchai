@@ -1,22 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
 import { RoutePage } from './pages/RoutePage'
 import { AgentRail } from './components/agent/AgentRail'
+import { FlyingMark } from './components/FlyingMark'
 import { Toaster } from './components/Toaster'
-import { useUi } from './store/ui'
 import { useMedia } from '@/lib/useMedia'
 import { cn } from '@/lib/cn'
 
 /** 这个宽度以下，助手改成浮层，不再挤占路线图 */
 const WIDE_QUERY = '(min-width: 1180px)'
+/** 标飞一趟花多久（展开 / 收起分开定，收起快一点） */
+const FLY_IN = 420
+const FLY_OUT = 380
+/** 面板头像的位置：头部 56 高、头像 30 居中 → top 13；面板 px-3.5 → left 14 */
+const AVATAR_SIZE = 30
+const AVATAR_TOP = 13
+const AVATAR_LEFT = 14
 
+/**
+ * 工作路线：路线图 + 左边常驻的路线助手。
+ *
+ * 助手的收放沿用比赛项目那套：图标从顶部「问助手」按钮飞到面板头像，
+ * 收起时再飞回去；面板本身做宽度 + 淡出过渡，不硬切。
+ */
 export default function App() {
-  const agentOpen = useUi((s) => s.agentOpen)
-  const setAgentOpen = useUi((s) => s.setAgentOpen)
   const wide = useMedia(WIDE_QUERY)
-
+  const [agentOpen, setAgentOpen] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches,
+  )
   const [closing, setClosing] = useState(false)
   const [entered, setEntered] = useState(false)
-  const timer = useRef<number | null>(null)
+  const [flight, setFlight] = useState<{ from: DOMRect; to: DOMRect; ms: number } | null>(null)
+  const timers = useRef<number[]>([])
+  const clearTimers = () => {
+    for (const t of timers.current) window.clearTimeout(t)
+    timers.current = []
+  }
+  useEffect(() => () => clearTimers(), [])
 
   useEffect(() => {
     if (!agentOpen) {
@@ -27,15 +46,46 @@ export default function App() {
     return () => window.cancelAnimationFrame(id)
   }, [agentOpen])
 
+  const entryRect = () =>
+    document.querySelector('[data-agent-entry-icon]')?.getBoundingClientRect() ?? null
+
+  const openAgent = () => {
+    clearTimers()
+    setClosing(false)
+    const from = entryRect()
+    if (wide && from) {
+      setFlight({ from, to: new DOMRect(AVATAR_LEFT, AVATAR_TOP, AVATAR_SIZE, AVATAR_SIZE), ms: FLY_IN })
+      setAgentOpen(true)
+      timers.current.push(window.setTimeout(() => setFlight(null), FLY_IN + 60))
+    } else {
+      setAgentOpen(true)
+    }
+  }
+
   const closeAgent = () => {
     if (closing) return
+    clearTimers()
+    const from = document.querySelector('[data-agent-avatar]')?.getBoundingClientRect() ?? null
+    const to = entryRect()
+    const ms = wide && from && to ? FLY_OUT : 0
     setClosing(true)
-    if (timer.current) window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      setAgentOpen(false)
-      setClosing(false)
-      timer.current = null
-    }, 240)
+    if (ms > 0) {
+      setFlight({ from: from as DOMRect, to: to as DOMRect, ms })
+      timers.current.push(
+        window.setTimeout(() => {
+          setAgentOpen(false)
+          setClosing(false)
+          setFlight(null)
+        }, ms + 60),
+      )
+    } else {
+      timers.current.push(
+        window.setTimeout(() => {
+          setAgentOpen(false)
+          setClosing(false)
+        }, 240),
+      )
+    }
   }
 
   return (
@@ -49,16 +99,21 @@ export default function App() {
               closing || !entered ? 'w-0' : 'w-[clamp(320px,23vw,380px)]',
             )}
           >
-            <AgentRail closing={closing} onClose={closeAgent} />
+            <AgentRail closing={closing} flying={!!flight} onClose={closeAgent} />
           </div>
         ) : (
           <AgentRail floating closing={closing} onClose={closeAgent} />
         ))}
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <RoutePage />
+        <RoutePage
+          agentOpen={agentOpen}
+          flying={!!flight}
+          onToggleAgent={agentOpen ? closeAgent : openAgent}
+        />
       </main>
 
+      {flight && <FlyingMark from={flight.from} to={flight.to} duration={flight.ms} />}
       <Toaster />
     </div>
   )

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, PanelLeftClose, RotateCcw, Waypoints } from 'lucide-react'
+import { MoreHorizontal, PanelLeftClose, RotateCcw } from 'lucide-react'
 import type { Message, ToolCall } from '@/types'
 import { useChat } from '@/store/chat'
 import { useUi } from '@/store/ui'
@@ -8,6 +8,7 @@ import { streamChat, type ApiMessage } from '@/lib/llm'
 import { stripDsl } from '@/lib/dsl'
 import { cn } from '@/lib/cn'
 import { Bubble } from './Bubble'
+import { RouteMark } from '../RouteMark'
 import { Composer } from './Composer'
 
 const MODEL = 'deepseek-flash'
@@ -28,10 +29,13 @@ export function AgentRail({
   floating = false,
   onClose,
   closing = false,
+  flying = false,
 }: {
   floating?: boolean
   onClose: () => void
   closing?: boolean
+  /** 标正在飞：面板头像先藏起来，让飞行体独占 */
+  flying?: boolean
 }) {
   const messages = useChat((s) => s.messages)
   const hydrate = useChat((s) => s.hydrate)
@@ -221,8 +225,8 @@ export function AgentRail({
         )}
       >
         <div className="flex h-[56px] shrink-0 items-center gap-2.5 border-b border-line px-3.5">
-          <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-ink text-white shadow-[0_2px_6px_rgba(23,22,26,.18)]">
-            <Waypoints size={16} strokeWidth={1.8} />
+          <span data-agent-avatar className={cn('shrink-0', flying && 'invisible')}>
+            <RouteMark size={30} className="shadow-[0_2px_6px_rgba(23,22,26,.18)]" />
           </span>
           <div className="min-w-0">
             <div className="truncate text-[13px] leading-tight font-semibold">路线助手</div>
