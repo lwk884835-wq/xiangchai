@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Link2, Pin, Trash2, X } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, actionNodeContext, useActions } from '@/store/actions'
+import { useUi } from '@/store/ui'
 
 /** 稳定的空数组：selector 里返回新数组会导致无限重渲染 */
 const EMPTY_IDS: string[] = []
@@ -33,6 +34,7 @@ export function NodeDrawer({
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const moveNode = useActions((s) => s.moveNode)
+  const toast = useUi((s) => s.showToast)
 
   const node = useMemo(
     () => nodes.find((n) => n.id === nodeId) ?? null,
@@ -87,6 +89,37 @@ export function NodeDrawer({
 
   if (!node) return null
 
+  /**
+   * 新加的子任务经常落在抽屉盖住的那块，用户会以为没创建成功。
+   * 这里把它滚进「抽屉左侧可见区」并闪一下，给个明确反馈。
+   */
+  const revealNode = (id: string) => {
+    window.setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-node-id="${id}"]`)
+      if (!el) return
+      // 先保证纵向在视野里（页面自身是纵向滚动的）
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      const scroller = el.closest<HTMLElement>('.overflow-x-auto')
+      if (scroller) {
+        const er = el.getBoundingClientRect()
+        const sr = scroller.getBoundingClientRect()
+        const drawer = document.querySelector('div.fixed.inset-0.z-40 aside')?.getBoundingClientRect()
+        const rightLimit = Math.min(sr.right, drawer ? drawer.left : sr.right) - 20
+        const leftLimit = Math.max(sr.left, 0) + 20
+        if (er.right > rightLimit) scroller.scrollBy({ left: er.right - rightLimit, behavior: 'smooth' })
+        else if (er.left < leftLimit) scroller.scrollBy({ left: er.left - leftLimit, behavior: 'smooth' })
+      }
+      // 高亮一下（1200ms 后自己消失）
+      el.animate?.(
+        [
+          { boxShadow: '0 0 0 2px rgba(76,65,210,.6)', borderRadius: '14px' },
+          { boxShadow: '0 0 0 2px rgba(76,65,210,0)', borderRadius: '14px' },
+        ],
+        { duration: 1200, easing: 'ease-out' },
+      )
+    }, 80)
+  }
+
   /** 「确定」：把当前编辑保存下来再关闭（以前只能点 X，隐式保存不直观） */
   const commitEdits = () => {
     if (!node) return
@@ -133,6 +166,8 @@ export function NodeDrawer({
     setChildTitle('')
     setChildPurpose('')
     setChildDetail('')
+    toast(`已添加子任务：${childTitle.trim()}`)
+    revealNode(newId)
   }
 
   return (
