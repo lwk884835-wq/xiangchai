@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Download, Plus, Undo2 } from 'lucide-react'
+import { Download, Plus, Sparkles, Undo2 } from 'lucide-react'
 import { actionProgress, planToMarkdown, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
+import { cn } from '@/lib/cn'
 import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
 import { NodeDrawer } from '@/components/action/NodeDrawer'
@@ -32,6 +33,8 @@ export function RoutePage() {
   const doneHistory = useActions((s) => s.doneHistory)
   const undoDone = useActions((s) => s.undoDone)
   const toast = useUi((s) => s.showToast)
+  const agentOpen = useUi((s) => s.agentOpen)
+  const setAgentOpen = useUi((s) => s.setAgentOpen)
   const [openId, setOpenId] = useState<string | null>(null)
 
   // 第一次进来给一份示例，避免空屏；节点 id 会变，所以要维护旧 id → 新 id 的映射
@@ -126,6 +129,14 @@ export function RoutePage() {
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={() => setAgentOpen(!agentOpen)}
+              className={cn('btn', agentOpen ? 'btn-line' : 'btn-accent')}
+              title={agentOpen ? '收起路线助手' : '让路线助手帮你拆/改路线'}
+            >
+              <Sparkles size={12} />
+              <span className="hidden lg:inline">{agentOpen ? '收起助手' : '问助手'}</span>
+            </button>
             <button onClick={addGoal} className="btn btn-line" title="自己加一个目标">
               <Plus size={12} />
               <span className="hidden lg:inline">加目标</span>

@@ -35,3 +35,26 @@ export interface ActionBoard {
   nodes: ActionNode[]
   archived: boolean
 }
+
+/* ---------- 对话 ---------- */
+
+export interface ToolCall {
+  name: string
+  result: string
+}
+
+export interface Message {
+  id: string
+  role: 'user' | 'agent'
+  text: string
+  /** 模型的思考过程（流式时同步展示） */
+  reasoning?: string
+  /** 用户中途按了停止：内容保留，界面上标一下 */
+  stopped?: boolean
+  /** 被输出上限截断：内容可能不完整，界面上标一下 */
+  truncated?: boolean
+  /** 这一轮调过的工具（显示成小标签） */
+  tools?: ToolCall[]
+  streaming?: boolean
+  ts: number
+}
