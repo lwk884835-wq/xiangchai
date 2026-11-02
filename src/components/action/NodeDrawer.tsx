@@ -526,6 +526,7 @@ export function NodeDrawer({
               <label className="label">子任务（{kids.length}）</label>
               <span className="max-w-[62%] truncate text-[10px] text-faint">
                 {(() => {
+                  if (childParallel) return '并行：会单独起一条线，不接在选中任务后面'
                   const sel = kids.find((k) => k.id === selectedChildId)
                   return sel
                     ? `已选中「${sel.title}」· 串行接在它后面`
@@ -597,7 +598,8 @@ export function NodeDrawer({
                       className={cn(
                         'group flex cursor-grab items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors active:cursor-grabbing',
                         dragChildId === k.id && 'opacity-40',
-                        selectedChildId === k.id
+                        // 选中高亮只属于串行模式：并行是单独一条线，不接在谁后面
+                        selectedChildId === k.id && !childParallel
                           ? 'bg-accent-soft/70 ring-1 ring-accent-line'
                           : 'hover:bg-surface-3/70',
                       )}
