@@ -294,6 +294,7 @@ export const RouteBoard = memo(function RouteBoard({
     dragIdRef.current = null
     setDragId(null)
     setDropId(null)
+    stopEdgeScroll()
   }
 
   const dnd: Dnd = {
@@ -340,6 +341,91 @@ export const RouteBoard = memo(function RouteBoard({
   const roots = useMemo(() => nodes.filter((n) => !n.parentId), [nodes])
   const wrapRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  /**
+   * 拖到左右边缘时自动横向滚动：
+   * 卡片拖到屏幕外的地方时不用反复松手再拖，停边上就会自己滚。
+   */
+  const edgeDirRef = useRef<0 | -1 | 1>(0)
+  const edgeSpeedRef = useRef(0)
+  const vDirRef = useRef<0 | -1 | 1>(0)
+  const vSpeedRef = useRef(0)
+  const edgeRafRef = useRef<number | null>(null)
+  const stopEdgeScroll = () => {
+    edgeDirRef.current = 0
+    edgeSpeedRef.current = 0
+    vDirRef.current = 0
+    vSpeedRef.current = 0
+    if (edgeRafRef.current !== null) {
+      window.cancelAnimationFrame(edgeRafRef.current)
+      edgeRafRef.current = null
+    }
+  }
+  const startEdgeScroll = () => {
+    if (edgeRafRef.current !== null) return
+    const tick = () => {
+      const el = scrollRef.current
+      const hDir = edgeDirRef.current
+      const vDir = vDirRef.current
+      if (!el || (hDir === 0 && vDir === 0)) {
+        edgeRafRef.current = null
+        return
+      }
+      if (hDir !== 0) el.scrollLeft += hDir * edgeSpeedRef.current
+      if (vDir !== 0) {
+        // 页面竖向滚动容器（路线图那一块的外层）
+        const pageScroller = el.closest('.overflow-y-auto') as HTMLElement | null
+        if (pageScroller) pageScroller.scrollTop += vDir * vSpeedRef.current
+      }
+      edgeRafRef.current = window.requestAnimationFrame(tick)
+    }
+    edgeRafRef.current = window.requestAnimationFrame(tick)
+  }
+  /** 只在拖路线卡片时生效；越靠近边缘滚得越快 */
+  const handleEdgeDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types.includes('application/x-route-node')) return
+    const el = scrollRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const EDGE = 76
+    const dir: 0 | -1 | 1 =
+      e.clientX > r.right - EDGE ? 1 : e.clientX < r.left + EDGE ? -1 : 0
+    if (dir === 0) {
+      edgeDirRef.current = 0
+      edgeSpeedRef.current = 0
+    } else {
+      const depth =
+        dir === 1 ? (e.clientX - (r.right - EDGE)) / EDGE : (r.left + EDGE - e.clientX) / EDGE
+      edgeSpeedRef.current = 5 + Math.min(1, Math.max(0, depth)) * 17
+      edgeDirRef.current = dir
+    }
+
+    // 上下：靠近视口边缘时竖向滚动（路线图比一屏高的时候用）
+    const V_EDGE = 90
+    const vDir: 0 | -1 | 1 =
+      e.clientY > window.innerHeight - V_EDGE
+        ? 1
+        : e.clientY < V_EDGE
+          ? -1
+          : 0
+    if (vDir === 0) {
+      vDirRef.current = 0
+      vSpeedRef.current = 0
+    } else {
+      const depth =
+        vDir === 1
+          ? (e.clientY - (window.innerHeight - V_EDGE)) / V_EDGE
+          : (V_EDGE - e.clientY) / V_EDGE
+      vSpeedRef.current = 5 + Math.min(1, Math.max(0, depth)) * 15
+      vDirRef.current = vDir
+    }
+
+    if (dir === 0 && vDir === 0) {
+      stopEdgeScroll()
+    } else {
+      startEdgeScroll()
+    }
+  }
+  useEffect(() => () => stopEdgeScroll(), [])
   const [paths, setPaths] = useState<Seg[]>([])
   const [box, setBox] = useState({ w: 0, h: 0 })
   /** 左右两边还有没有没露出来的卡片：有就挂渐变/箭头，省得用户不知道能滚 */
@@ -710,6 +796,11 @@ export const RouteBoard = memo(function RouteBoard({
         onMouseOver={(e) => {
           const el = (e.target as HTMLElement).closest('[data-node-id]')
           hoveredRef.current = el ? el.getAttribute('data-node-id') : null
+        }}
+        onDragOver={handleEdgeDragOver}
+        onDragLeave={(e) => {
+          const next = e.relatedTarget as Node | null
+          if (!next || !(e.currentTarget as HTMLElement).contains(next)) stopEdgeScroll()
         }}
         className="overflow-x-auto rounded-[12px] px-2 pt-4 pb-4 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:outline-none"
       >
