@@ -32,6 +32,7 @@ export function NodeDrawer({
   const addNode = useActions((s) => s.addNode)
   const detachNode = useActions((s) => s.detachNode)
   const deleteNode = useActions((s) => s.deleteNode)
+  const reorderChild = useActions((s) => s.reorderChild)
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const moveNode = useActions((s) => s.moveNode)
@@ -92,6 +93,9 @@ export function NodeDrawer({
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
   /** 底部「删掉这个」的两种删法弹层 */
   const [delMenu, setDelMenu] = useState(false)
+  /** 抽屉里拖拽调整子任务顺序 / 并入别的分线 */
+  const [dragChildId, setDragChildId] = useState<string | null>(null)
+  const [dropHint, setDropHint] = useState<{ id: string; pos: 'before' | 'after' } | null>(null)
 
   // 默认选中最上面的子任务；选中的被删/换父节点时也回落到最上面那条。
   // 这样「串行」永远有一个明确的落点，不用先手动点一下。
@@ -503,7 +507,7 @@ export function NodeDrawer({
                   const sel = kids.find((k) => k.id === selectedChildId)
                   return sel
                     ? `已选中「${sel.title}」· 串行接在它后面`
-                    : '点选子任务可指定串行位置 · 右键可独立成线'
+                    : '拖动可调整顺序/并入别的分线 · 右键可独立成线'
                 })()}
               </span>
             </div>
@@ -517,6 +521,40 @@ export function NodeDrawer({
                   {group.map((k) => (
                     <div
                       key={k.id}
+                      draggable
+                      onDragStart={(e) => {
+                        setDragChildId(k.id)
+                        e.dataTransfer.setData('application/x-child-node', k.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnd={() => {
+                        setDragChildId(null)
+                        setDropHint(null)
+                      }}
+                      onDragOver={(e) => {
+                        if (!dragChildId || dragChildId === k.id) return
+                        e.preventDefault()
+                        e.stopPropagation()
+                        e.dataTransfer.dropEffect = 'move'
+                        const r = e.currentTarget.getBoundingClientRect()
+                        const pos = e.clientY < r.top + r.height / 2 ? 'before' : 'after'
+                        setDropHint({ id: k.id, pos })
+                      }}
+                      onDragLeave={() =>
+                        setDropHint((cur) => (cur?.id === k.id ? null : cur))
+                      }
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const from =
+                          e.dataTransfer.getData('application/x-child-node') || dragChildId
+                        const pos = dropHint?.id === k.id ? dropHint.pos : 'after'
+                        setDragChildId(null)
+                        setDropHint(null)
+                        if (!from || from === k.id) return
+                        reorderChild(from, k.id, pos)
+                        toast('顺序已调整')
+                      }}
                       onClick={() => setSelectedChildId(k.id)}
                       onContextMenu={(e) => {
                         // mac 触控板双指按压 = contextmenu：打开「独立成线」菜单
@@ -524,8 +562,19 @@ export function NodeDrawer({
                         e.stopPropagation()
                         setMenu({ nodeId: k.id, x: e.clientX, y: e.clientY })
                       }}
+                      style={
+                        dropHint?.id === k.id
+                          ? {
+                              boxShadow:
+                                dropHint.pos === 'before'
+                                  ? 'inset 0 2px 0 #7c6cf0'
+                                  : 'inset 0 -2px 0 #7c6cf0',
+                            }
+                          : undefined
+                      }
                       className={cn(
-                        'group flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors',
+                        'group flex cursor-grab items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors active:cursor-grabbing',
+                        dragChildId === k.id && 'opacity-40',
                         selectedChildId === k.id
                           ? 'bg-accent-soft/70 ring-1 ring-accent-line'
                           : 'hover:bg-surface-3/70',

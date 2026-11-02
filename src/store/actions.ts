@@ -65,9 +65,19 @@ interface ActionState {
   deleteNode: (id: string, mode: 'only' | 'cascade', boardId?: string) => void
   /**
    * 拖拽搬动：搬「它 + 子树 + 同一串里后面的步骤（含子树）」。
-   * 放到目标卡片上 → 成为目标的子任务，接在目标现有子任务后面。
+   * 放到目标卡片上 → 成为目标的并行子任务线。
    */
   moveSubtree: (id: string, targetId: string, boardId?: string) => void
+  /**
+   * 抽屉里调整子任务顺序：只搬这一张卡（连同它的子树），不带走后面的兄弟。
+   * position = before/after 目标；目标在别的分线上时直接并入那条分线。
+   */
+  reorderChild: (
+    id: string,
+    targetId: string,
+    position: 'before' | 'after',
+    boardId?: string,
+  ) => void
   /** 拖到路线列表：整串搬到另一条路线，挂到那条路线最后一个目标下面 */
   moveSubtreeToBoard: (id: string, targetBoardId: string, targetId?: string) => void
   toggleCollapse: (id: string, boardId?: string) => void
@@ -568,6 +578,62 @@ export const useActions = create<ActionState>()(
               return b
             }),
           }))
+        },
+
+        reorderChild: (id, targetId, position, boardId) => {
+          const board = boardOf(boardId)
+          if (!board || id === targetId) return
+          const nodes = board.nodes
+          const node = nodes.find((n) => n.id === id)
+          const target = nodes.find((n) => n.id === targetId)
+          if (!node || !target) return
+          // 只在同一个父级下列内调整（抽屉里的子任务列表）
+          if (node.parentId !== target.parentId) return
+
+          // 只搬这一张卡 + 它自己的子树，不带走同一串后面的兄弟
+          const moving = new Set<string>([node.id])
+          const collect = (rid: string) => {
+            for (const n of nodes) {
+              if (n.parentId === rid && !moving.has(n.id)) {
+                moving.add(n.id)
+                collect(n.id)
+              }
+            }
+          }
+          collect(node.id)
+
+          pushHistory('调整顺序')
+          const oldBranch = node.branch || ''
+          const destBranch = target.branch || ''
+          const movedNodes = nodes.filter((n) => moving.has(n.id))
+          const head = movedNodes.find((n) => n.id === node.id)!
+          const descendants = movedNodes.filter((n) => n.id !== node.id)
+          const rest = nodes.filter((n) => !moving.has(n.id))
+
+          // 去掉 node 后，按 target 的位置插回去（行序 = 串行顺序）
+          const ti = rest.findIndex((n) => n.id === target.id)
+          if (ti < 0) return
+          const insertAt = position === 'before' ? ti : ti + 1
+          const placed = [
+            ...rest.slice(0, insertAt),
+            { ...head, branch: destBranch, parallel: false, deps: [] as string[] },
+            ...rest.slice(insertAt),
+            ...descendants,
+          ]
+
+          // 两个受影响的分线按数组顺序重接串行前置（以前的 deps 就是按行序串的）
+          const branches = new Set([oldBranch, destBranch])
+          for (const br of branches) {
+            const group = placed.filter(
+              (n) => n.parentId === node.parentId && (n.branch || '') === br,
+            )
+            group.forEach((n, i) => {
+              const deps = i > 0 ? [group[i - 1].id] : []
+              if (JSON.stringify(n.deps) !== JSON.stringify(deps)) n.deps = deps
+            })
+          }
+
+          patchBoard(boardId, (b) => ({ ...b, nodes: placed }))
         },
 
         toggleCollapse: (id, boardId) =>
