@@ -51,6 +51,11 @@ interface ActionState {
   pinNode: (id: string, pinned: boolean, boardId?: string) => void
   removeNode: (id: string, boardId?: string) => void
   moveNode: (id: string, dir: -1 | 1, boardId?: string) => void
+  /**
+   * 把一个串行链上的子任务独立出来：单独一条线（新的 branch），不接前置。
+   * 如果后面还串着任务，那个任务的前置改接到它的上一步，链不断。
+   */
+  detachNode: (id: string, boardId?: string) => void
   toggleCollapse: (id: string, boardId?: string) => void
 
   addFocusItem: (text: string) => void
@@ -322,6 +327,51 @@ export const useActions = create<ActionState>()(
             ;[nodes[idx], nodes[otherIdx]] = [nodes[otherIdx], nodes[idx]]
             return { ...b, nodes }
           }),
+
+        detachNode: (id, boardId) => {
+          const board = boardOf(boardId)
+          const node = board?.nodes.find((n) => n.id === id)
+          if (!board || !node) return
+
+          // 同一父级、同一 branch 的兄弟，数组顺序就是串行顺序
+          const mates = board.nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === id)
+          const prev = at > 0 ? mates[at - 1] : null
+          const next = at >= 0 && at < mates.length - 1 ? mates[at + 1] : null
+
+          // 已经不在串行链上：只清掉可能残留的前置，不再造一条分支
+          if (mates.length <= 1) {
+            patchBoard(boardId, (b) => ({
+              ...b,
+              nodes: b.nodes.map((n) =>
+                n.id === id ? { ...n, parallel: true, deps: [] } : n,
+              ),
+            }))
+            return
+          }
+
+          // 找一条没被占用的并行分支名（沿用「并行N」的命名习惯）
+          const used = new Set(
+            board.nodes.filter((n) => n.parentId === node.parentId).map((n) => n.branch),
+          )
+          let i = 1
+          while (used.has(`并行${i}`)) i++
+          const branch = `并行${i}`
+
+          patchBoard(boardId, (b) => ({
+            ...b,
+            nodes: b.nodes.map((n) => {
+              if (n.id === id) return { ...n, branch, parallel: true, deps: [] }
+              // 后面的串行任务：前置从「被拆出去的那个」改接到它的上一步，链保持连续
+              if (next && n.id === next.id && (n.deps || []).includes(id)) {
+                return { ...n, deps: prev ? [prev.id] : [] }
+              }
+              return n
+            }),
+          }))
+        },
 
         toggleCollapse: (id, boardId) =>
           set((s) => {

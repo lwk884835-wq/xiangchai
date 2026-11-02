@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, Check, Link2, Pin, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Link2, Pin, Trash2, Unlink, X } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, actionNodeContext, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -31,6 +31,7 @@ export function NodeDrawer({
   const toggleCollapse = useActions((s) => s.toggleCollapse)
   const addNode = useActions((s) => s.addNode)
   const removeNode = useActions((s) => s.removeNode)
+  const detachNode = useActions((s) => s.detachNode)
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const moveNode = useActions((s) => s.moveNode)
@@ -85,6 +86,8 @@ export function NodeDrawer({
   // 默认串行：往一棵计划里加子任务，绝大多数是「接着上一步做」
   const [childParallel, setChildParallel] = useState(false)
   const [childAtStart, setChildAtStart] = useState(false)
+  /** 右键子任务弹出的菜单：位置 + 目标节点 */
+  const [menu, setMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (node) {
@@ -189,6 +192,55 @@ export function NodeDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-ink/20 anim-fade-in" onClick={onClose}>
+      {menu &&
+        (() => {
+          const target = kids.find((k) => k.id === menu.nodeId)
+          const group = kidGroups.find((g) => g.some((k) => k.id === menu.nodeId))
+          const lone = !group || group.length <= 1
+          const x = Math.min(menu.x, window.innerWidth - 236)
+          const y = Math.min(menu.y, window.innerHeight - 150)
+          return (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMenu(null)
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setMenu(null)
+                }}
+              />
+              <div
+                className="fixed z-50 w-[220px] overflow-hidden rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3 anim-pop"
+                style={{ left: x, top: y }}
+                onClick={(e) => e.stopPropagation()}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">{target?.title}</div>
+                <button
+                  onClick={() => {
+                    if (!target || lone) return
+                    detachNode(target.id)
+                    toast(`「${target.title}」已独立成一条线`)
+                    revealNode(target.id)
+                    setMenu(null)
+                  }}
+                  disabled={lone}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:text-faint"
+                >
+                  <Unlink size={12} className="shrink-0" />
+                  独立成一条线
+                </button>
+                <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
+                  {lone ? '它已经不在串行链上' : '不再串在前面的任务后面，单独从父任务引一条线'}
+                </p>
+              </div>
+            </>
+          )
+        })()}
       <aside
         className="anim-drawer-in flex h-full w-[min(420px,92vw)] flex-col border-l border-line bg-surface shadow-[-24px_0_60px_-24px_rgba(23,22,26,.35)]"
         onClick={(e) => e.stopPropagation()}
@@ -349,7 +401,10 @@ export function NodeDrawer({
           )}
 
           <div>
-            <label className="label">子任务（{kids.length}）</label>
+            <div className="flex items-baseline justify-between">
+              <label className="label">子任务（{kids.length}）</label>
+              <span className="text-[10px] text-faint">右键任务可独立成线</span>
+            </div>
             <div className="mt-1 space-y-1.5">
               {kidGroups.map((group) => (
                 // 一组 = 路线图里同一行的那一串串行任务；框起来才分得清哪几条是一串
@@ -360,6 +415,12 @@ export function NodeDrawer({
                   {group.map((k) => (
                     <div
                       key={k.id}
+                      onContextMenu={(e) => {
+                        // mac 触控板双指按压 = contextmenu：打开「独立成线」菜单
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setMenu({ nodeId: k.id, x: e.clientX, y: e.clientY })
+                      }}
                       className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-surface-3/70"
                     >
                       <button
