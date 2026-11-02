@@ -168,7 +168,7 @@ export const NodeCard = memo(function NodeCard({
             e.stopPropagation()
             onPin(node.id, !node.pinned)
           }}
-          title={node.pinned ? '从重点里拿掉' : '定到重点'}
+          title={node.pinned ? '从重点里拿掉（连同三层内的子任务）' : '定到重点（连同三层内的子任务）'}
           className={cn(
             'flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3',
             node.pinned && 'text-accent opacity-100',

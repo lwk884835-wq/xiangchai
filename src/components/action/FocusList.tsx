@@ -62,13 +62,18 @@ export function FocusList({
       父子同时出现也是用户自己的选择，不用替他过滤掉。
       顺序还是按树走（父在子前），只是不再擅自扩名单。
     */
-    const walk = (id: string) => {
+    const walk = (id: string, depth: number) => {
       const n = byId.get(id)
       if (!n) return
-      if (n.pinned) out.push({ node: n, depth: 0 })
-      for (const c of childrenOf(nodes, id)) walk(c.id)
+      if (n.pinned) {
+        out.push({ node: n, depth })
+        // 钉父任务会连带钉三层内的子任务；缩进跟着层级走
+        for (const c of childrenOf(nodes, id)) walk(c.id, depth + 1)
+      } else {
+        for (const c of childrenOf(nodes, id)) walk(c.id, depth)
+      }
     }
-    for (const r of nodes.filter((n) => !n.parentId)) walk(r.id)
+    for (const r of nodes.filter((n) => !n.parentId)) walk(r.id, 0)
     return out
   }, [nodes])
 
@@ -83,7 +88,7 @@ export function FocusList({
       <header className="flex items-center gap-2 border-b border-line/80 px-5 py-3.5">
         <h2 className="shrink-0 text-[14px] font-semibold tracking-tight">重点</h2>
         <span className="hidden min-w-0 truncate text-[12px] text-faint lg:inline">
-          你自己最近想推的事 · 点任务卡上的图钉就能定到这里
+          你自己最近想推的事 · 钉一个任务会带上它三层内的子任务
         </span>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <input

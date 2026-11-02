@@ -352,7 +352,7 @@ export function NodeDrawer({
               'ml-auto flex h-[24px] items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors',
               node.pinned ? 'bg-accent-soft text-accent-ink' : 'text-muted hover:bg-surface-3',
             )}
-            title={node.pinned ? '从重点里拿掉' : '定到重点'}
+            title={node.pinned ? '从重点里拿掉（连同三层内的子任务）' : '定到重点（连同三层内的子任务）'}
           >
             <Pin size={11} />
             {node.pinned ? '已在重点' : '定到重点'}

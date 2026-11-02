@@ -315,11 +315,34 @@ export const useActions = create<ActionState>()(
           return last.label
         },
 
-        pinNode: (id, pinned, boardId) =>
-          patchBoard(boardId, (b) => ({
+        pinNode: (id, pinned, boardId) => {
+          const board = boardOf(boardId)
+          if (!board) return
+          /*
+            钉一个任务 = 把它和**三层以内的子任务**一起钉到重点清单。
+            以前只钉自己，父任务钉上去之后子任务在清单里看不到；
+            反过来取消时也按同一范围一起摘，不留半截。
+          */
+          const hit = new Set<string>([id])
+          let frontier: string[] = [id]
+          for (let depth = 0; depth < 3; depth++) {
+            const next: string[] = []
+            for (const pid of frontier) {
+              for (const n of board.nodes) {
+                if (n.parentId === pid && !hit.has(n.id)) {
+                  hit.add(n.id)
+                  next.push(n.id)
+                }
+              }
+            }
+            frontier = next
+            if (!frontier.length) break
+          }
+          patchBoard(board.id, (b) => ({
             ...b,
-            nodes: b.nodes.map((n) => (n.id === id ? { ...n, pinned } : n)),
-          })),
+            nodes: b.nodes.map((n) => (hit.has(n.id) ? { ...n, pinned } : n)),
+          }))
+        },
 
         // 删父节点要把它的后代一起带走
         removeNode: (id, boardId) =>
