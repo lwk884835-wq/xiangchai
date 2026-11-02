@@ -37,7 +37,7 @@ const TIP_HALF = 5
  * 父→子的空隙是 pl-10（40px），和根目标之间的 w-[40px] 一致；
  * 竖线靠左 12px，尖角在这整段 40px 里居中（不是从竖线开始算）。
  */
-const TRUNK_INSET = 12
+const TRUNK_INSET = 8
 
 /**
  * 尖角：开口朝左、尖朝右。
@@ -309,8 +309,11 @@ export const RouteBoard = memo(function RouteBoard({
         continue
       }
 
-      // 同一层级、中间没有藏着东西：V 型箭头（不带线）
-      out.push({ d: vArrow(centeredTip(a.right, b.left), b.cy), tone: 'tip' })
+      // 同一层级、中间没有藏着东西：V 型箭头（不带线），取两张卡的中点
+      out.push({
+        d: vArrow(centeredTip(a.right, b.left), (a.cy + b.cy) / 2),
+        tone: 'tip',
+      })
     }
 
     // 父 → 子：竖主干 + 水平分叉
@@ -347,8 +350,12 @@ export const RouteBoard = memo(function RouteBoard({
           const a = rectOf(g[i - 1].id)
           const b = rectOf(g[i].id)
           if (!a || !b) continue
-          // 同一串里相邻的同级：V 型箭头（不带线）
-          out.push({ d: vArrow(centeredTip(a.right, b.left), a.cy), tone: 'tip' })
+          // 同一串里相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，
+          // 卡片高度不同时也不会看着偏上/偏下
+          out.push({
+            d: vArrow(centeredTip(a.right, b.left), (a.cy + b.cy) / 2),
+            tone: 'tip',
+          })
         }
       }
     }
