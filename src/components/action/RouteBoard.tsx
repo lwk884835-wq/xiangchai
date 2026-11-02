@@ -555,106 +555,8 @@ export const RouteBoard = memo(function RouteBoard({
     return () => ro.disconnect()
   }, [compute])
 
-  if (!roots.length) {
-    return (
-      <EmptyState
-        icon={ListChecks}
-        title="还没有行动路线"
-        hint="有一个想做成的事，就从一个目标开始；后面可以慢慢拆成几条并行的线。"
-        action={
-          onAddGoal
-            ? { label: '加第一个目标', onClick: onAddGoal, icon: <Plus size={12} /> }
-            : undefined
-        }
-      />
-    )
-  }
-
-  return (
-    <div className="relative">
-      <div
-        ref={scrollRef}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-          const el = scrollRef.current
-          if (!el) return
-          e.preventDefault()
-          el.scrollBy({ left: e.key === 'ArrowRight' ? 240 : -240, behavior: 'smooth' })
-        }}
-        aria-label="行动路线图，可以用左右方向键横向滚动"
-        onMouseOver={(e) => {
-          const el = (e.target as HTMLElement).closest('[data-node-id]')
-          hoveredRef.current = el ? el.getAttribute('data-node-id') : null
-        }}
-        onContextMenu={(e) => {
-          if ((e.target as HTMLElement).closest('[data-node-id]')) return
-          openCtxMenu(undefined, e)
-        }}
-        className="overflow-x-auto rounded-[12px] px-2 pt-4 pb-4 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:outline-none"
-      >
-        <div ref={wrapRef} className="relative min-w-max px-2">
-          {/* 连线层：位置按真实布局算 */}
-          <svg
-            className="pointer-events-none absolute top-0 left-0 transform-gpu"
-            width={box.w}
-            height={box.h}
-            aria-hidden
-          >
-            {paths.map((p, i) => (
-              <path
-                key={i}
-                d={p.d}
-                fill="none"
-                stroke={p.tone === 'tip' ? TIP : p.tone === 'trunk' ? TRUNK : CURVE}
-                strokeWidth={p.tone === 'tip' ? 2 : p.tone === 'trunk' ? 1.2 : 1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-          </svg>
-
-          <div className="flex items-start">
-            {roots.map((root, i) => (
-              <Fragment key={root.id}>
-                {i > 0 && <span className="w-[40px] shrink-0" />}
-                <Column
-                  node={root}
-                  nodes={nodes}
-                  collapsed={collapsed}
-                  onOpen={onOpen}
-                  onToggle={onToggle}
-                  onPin={onPin}
-                  onToggleCollapse={onToggleCollapse}
-                  dnd={dnd}
-                  onCardContextMenu={openCtxMenu}
-                />
-              </Fragment>
-            ))}
-          </div>
-        </div>
-      </div>
-      {edges.left && (
-        <div className="pointer-events-none absolute top-0 bottom-2 left-0 w-10 rounded-l-[12px] bg-gradient-to-r from-surface to-transparent" />
-      )}
-      {edges.right && (
-        <div className="pointer-events-none absolute top-0 right-0 bottom-2 w-10 bg-gradient-to-l from-surface to-transparent" />
-      )}
-      {edges.right && (
-        <button
-          onClick={() => {
-            const el = scrollRef.current
-            if (el) el.scrollBy({ left: Math.max(320, el.clientWidth * 0.7), behavior: 'smooth' })
-          }}
-          title="右边还有，点一下滚过去"
-          aria-label="向右滚动"
-          className="absolute top-1/2 right-1 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-[0_2px_8px_rgba(23,22,26,.12)] transition-colors hover:border-line-2 hover:text-ink"
-        >
-          <ChevronRight size={16} />
-        </button>
-      )}
-
-      {ctxMenu && (() => {
+  const ctxMenuView = ctxMenu
+    ? (() => {
         const target = ctxMenu.nodeId ? nodes.find((n) => n.id === ctxMenu.nodeId) : null
         return (
           <>
@@ -725,7 +627,120 @@ export const RouteBoard = memo(function RouteBoard({
             </div>
           </>
         )
-      })()}
+      })()
+    : null
+
+  if (!roots.length) {
+    return (
+      <div
+        className="relative"
+        onContextMenu={(e) => {
+          if ((e.target as HTMLElement).closest('[data-node-id]')) return
+          openCtxMenu(undefined, e)
+        }}
+      >
+        <EmptyState
+          icon={ListChecks}
+          title="还没有行动路线"
+          hint="有一个想做成的事，就从一个目标开始；后面可以慢慢拆成几条并行的线。"
+          action={
+            onAddGoal
+              ? { label: '加第一个目标', onClick: onAddGoal, icon: <Plus size={12} /> }
+              : undefined
+          }
+        />
+        {ctxMenuView}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="relative"
+      onContextMenu={(e) => {
+        if ((e.target as HTMLElement).closest('[data-node-id]')) return
+        openCtxMenu(undefined, e)
+      }}
+    >
+      <div
+        ref={scrollRef}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          const el = scrollRef.current
+          if (!el) return
+          e.preventDefault()
+          el.scrollBy({ left: e.key === 'ArrowRight' ? 240 : -240, behavior: 'smooth' })
+        }}
+        aria-label="行动路线图，可以用左右方向键横向滚动"
+        onMouseOver={(e) => {
+          const el = (e.target as HTMLElement).closest('[data-node-id]')
+          hoveredRef.current = el ? el.getAttribute('data-node-id') : null
+        }}
+        className="overflow-x-auto rounded-[12px] px-2 pt-4 pb-4 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:outline-none"
+      >
+        <div ref={wrapRef} className="relative min-w-max px-2">
+          {/* 连线层：位置按真实布局算 */}
+          <svg
+            className="pointer-events-none absolute top-0 left-0 transform-gpu"
+            width={box.w}
+            height={box.h}
+            aria-hidden
+          >
+            {paths.map((p, i) => (
+              <path
+                key={i}
+                d={p.d}
+                fill="none"
+                stroke={p.tone === 'tip' ? TIP : p.tone === 'trunk' ? TRUNK : CURVE}
+                strokeWidth={p.tone === 'tip' ? 2 : p.tone === 'trunk' ? 1.2 : 1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+          </svg>
+
+          <div className="flex items-start">
+            {roots.map((root, i) => (
+              <Fragment key={root.id}>
+                {i > 0 && <span className="w-[40px] shrink-0" />}
+                <Column
+                  node={root}
+                  nodes={nodes}
+                  collapsed={collapsed}
+                  onOpen={onOpen}
+                  onToggle={onToggle}
+                  onPin={onPin}
+                  onToggleCollapse={onToggleCollapse}
+                  dnd={dnd}
+                  onCardContextMenu={openCtxMenu}
+                />
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+      {edges.left && (
+        <div className="pointer-events-none absolute top-0 bottom-2 left-0 w-10 rounded-l-[12px] bg-gradient-to-r from-surface to-transparent" />
+      )}
+      {edges.right && (
+        <div className="pointer-events-none absolute top-0 right-0 bottom-2 w-10 bg-gradient-to-l from-surface to-transparent" />
+      )}
+      {edges.right && (
+        <button
+          onClick={() => {
+            const el = scrollRef.current
+            if (el) el.scrollBy({ left: Math.max(320, el.clientWidth * 0.7), behavior: 'smooth' })
+          }}
+          title="右边还有，点一下滚过去"
+          aria-label="向右滚动"
+          className="absolute top-1/2 right-1 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-[0_2px_8px_rgba(23,22,26,.12)] transition-colors hover:border-line-2 hover:text-ink"
+        >
+          <ChevronRight size={16} />
+        </button>
+      )}
+
+      {ctxMenuView}
     </div>
   )
 })
