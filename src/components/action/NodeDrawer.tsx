@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Link2, Pin, Trash2, Unlink, X } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, actionNodeContext, useActions } from '@/store/actions'
@@ -99,6 +99,45 @@ export function NodeDrawer({
   const [dragChildId, setDragChildId] = useState<string | null>(null)
   const [dropHint, setDropHint] = useState<{ id: string; pos: 'before' | 'after' } | null>(null)
 
+  /*
+    子任务草稿：在「子任务标题 / 目的 / 具体怎么做」里打了字、但没点添加就关抽屉，
+    以前会直接丢掉（重开抽屉时这些 state 被清空）。现在按「路线 + 父节点」存到
+    localStorage，重开/刷新后自动恢复，成功添加后清掉。
+  */
+  type ChildDraft = {
+    title: string
+    purpose: string
+    detail: string
+    branch: string
+    parallel: boolean
+    atStart: boolean
+    selectedChildId: string | null
+  }
+  const draftKey = node ? `work-route-child-draft:${activeBoardId ?? 'none'}:${node.id}` : null
+  /** 当前草稿已经为哪个节点载入过：防止切换节点时把上一个节点的值写进新节点的草稿 */
+  const draftLoadedFor = useRef<string | null>(null)
+  const readDraft = (): ChildDraft | null => {
+    if (!draftKey) return null
+    try {
+      const raw = localStorage.getItem(draftKey)
+      return raw ? (JSON.parse(raw) as ChildDraft) : null
+    } catch {
+      return null
+    }
+  }
+  const writeDraft = (d: ChildDraft) => {
+    if (!draftKey) return
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(d))
+    } catch {}
+  }
+  const clearDraft = () => {
+    if (!draftKey) return
+    try {
+      localStorage.removeItem(draftKey)
+    } catch {}
+  }
+
   // 默认选中最上面的子任务；选中的被删/换父节点时也回落到最上面那条。
   // 这样「串行」永远有一个明确的落点，不用先手动点一下。
   useEffect(() => {
@@ -113,18 +152,61 @@ export function NodeDrawer({
 
 
   useEffect(() => {
-    if (node) {
-      setTitle(node.title)
-      setPurpose(node.purpose)
-      setDetail(node.detail)
-      setNotes(node.notes ?? '')
+    if (!node) return
+    setTitle(node.title)
+    setPurpose(node.purpose)
+    setDetail(node.detail)
+    setNotes(node.notes ?? '')
+    // 路线名留空 = 自动：串行沿用父级那条线，并行单独分一条（addNode 里处理）
+    const draft = readDraft()
+    if (draft && (draft.title || draft.purpose || draft.detail || draft.branch)) {
+      setChildTitle(draft.title ?? '')
+      setChildPurpose(draft.purpose ?? '')
+      setChildDetail(draft.detail ?? '')
+      setChildBranch(draft.branch ?? '')
+      setChildParallel(!!draft.parallel)
+      setChildAtStart(!!draft.atStart)
+      setSelectedChildId(draft.selectedChildId ?? null)
+      toast('已恢复上次没提交的子任务草稿')
+    } else {
       setChildTitle('')
       setChildPurpose('')
       setChildDetail('')
-      // 路线名留空 = 自动：串行沿用父级那条线，并行单独分一条（addNode 里处理）
       setChildBranch('')
+      setChildParallel(false)
+      setChildAtStart(false)
     }
+    draftLoadedFor.current = node.id
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id])
+
+  // 子任务草稿随输入实时存（空草稿就删掉）
+  useEffect(() => {
+    if (!node || draftLoadedFor.current !== node.id) return
+    const draft: ChildDraft = {
+      title: childTitle,
+      purpose: childPurpose,
+      detail: childDetail,
+      branch: childBranch,
+      parallel: childParallel,
+      atStart: childAtStart,
+      selectedChildId,
+    }
+    const empty =
+      !draft.title && !draft.purpose && !draft.detail && !draft.branch && !draft.parallel && !draft.atStart
+    if (empty) clearDraft()
+    else writeDraft(draft)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    childTitle,
+    childPurpose,
+    childDetail,
+    childBranch,
+    childParallel,
+    childAtStart,
+    selectedChildId,
+    node?.id,
+  ])
 
   if (!node) return null
 
@@ -157,6 +239,19 @@ export function NodeDrawer({
         { duration: 1200, easing: 'ease-out' },
       )
     }, 80)
+  }
+
+  /** 关抽屉（X / 点遮罩）：先把主字段落库，别指望 onBlur 一定跑过 */
+  const closeDrawer = () => {
+    if (node) {
+      updateNode(node.id, {
+        title: title.trim() || node.title,
+        purpose,
+        detail,
+        notes: notes.trim(),
+      })
+    }
+    onClose()
   }
 
   /**
@@ -252,6 +347,7 @@ export function NodeDrawer({
     setChildTitle('')
     setChildPurpose('')
     setChildDetail('')
+    clearDraft()
     // 选中新任务：连续添加时就自然往后延长这一串
     setSelectedChildId(newId)
     toast(`已添加子任务：${childTitle.trim()}`)
@@ -259,7 +355,7 @@ export function NodeDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-ink/20 anim-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex justify-end bg-ink/20 anim-fade-in" onClick={closeDrawer}>
       {menu &&
         (() => {
           const target = kids.find((k) => k.id === menu.nodeId)
@@ -362,7 +458,7 @@ export function NodeDrawer({
             {node.pinned ? '已在重点' : '定到重点'}
           </button>
           <button
-            onClick={onClose}
+            onClick={closeDrawer}
             className="flex h-[24px] w-[24px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3 hover:text-ink"
           >
             <X size={14} />
