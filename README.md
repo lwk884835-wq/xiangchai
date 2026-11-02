@@ -65,6 +65,22 @@ src/
 - 没有后端、没有账号、没有云同步（数据只在你这台浏览器）
 - 没有提醒 / 日历集成（以后有需要再说）
 
+## 稳定版 vs 开发版
+
+- **稳定版（日常用）**：<http://127.0.0.1:5180/>
+  - 由 `releases/current` 里的构建产物提供服务，和开发服务器完全独立
+  - 已注册 launchd 常驻：`com.lwk.work-route-stable`（开机自启、挂了自动拉起）
+  - 桌面快捷方式：`工作路线-稳定版`（webloc 直接打开；.command 负责兜底启动）
+- **开发版（改代码用）**：<http://127.0.0.1:5174/>（`npm run dev`，随时可能变）
+- **数据是分开的**：localStorage 按 origin 存。第一次把数据搬到稳定版：
+  开发版右栏「导出数据」→ 稳定版右栏「导入数据」；之后日常只用稳定版。
+- **发布新稳定版**：`npm run release:stable`（从当前 git HEAD 构建，**不读工作区**，避免把半成品发出去）
+  - 指定提交：`npm run release:stable -- <git-ref>`
+  - 回滚：`npm run release:stable -- <旧提交>`
+  - 版本目录 `releases/<时间>-<sha>/`，只保留最近 6 个；服务永远读 `releases/current` 这个软链
+- **停止/卸载常驻服务**：`launchctl bootout gui/$(id -u)/com.lwk.work-route-stable`
+  （plist：`~/Library/LaunchAgents/com.lwk.work-route-stable.plist`）
+
 ## 约定
 
 - 任务名写成**能执行的动作**（「持续投递并记录日志」），不要口号 / 提醒（「不要放弃」）。
