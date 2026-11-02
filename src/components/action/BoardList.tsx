@@ -5,6 +5,8 @@ import {
   ChevronDown,
   Download,
   Pencil,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   RotateCcw,
   Trash2,
@@ -90,6 +92,28 @@ export function BoardList() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  /** 右侧栏是否展开：收起后把宽度让给行动路线 */
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem('work-route-boards-open') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const setOpenPersist = (v: boolean) => {
+    setOpen(v)
+    try {
+      localStorage.setItem('work-route-boards-open', v ? '1' : '0')
+    } catch {}
+  }
+  // 收起状态下从路线图拖卡片过来：自动展开，否则没有落点
+  useEffect(() => {
+    const onDragStart = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('application/x-route-node')) setOpenPersist(true)
+    }
+    window.addEventListener('dragstart', onDragStart)
+    return () => window.removeEventListener('dragstart', onDragStart)
+  }, [])
 
   const live = boards.filter((b) => !b.archived)
   const archived = boards.filter((b) => b.archived)
@@ -114,9 +138,36 @@ export function BoardList() {
   }
 
   return (
-    <div className="flex w-[clamp(210px,13vw,260px)] shrink-0 flex-col overflow-hidden border-l border-line bg-surface-2">
+    <div
+      className={cn(
+        'flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface-2 transition-[width] duration-200 ease-out',
+        open ? 'w-[clamp(210px,13vw,260px)]' : 'w-[30px]',
+      )}
+    >
+      {!open ? (
+        <button
+          onClick={() => setOpenPersist(true)}
+          title="展开路线列表"
+          aria-label="展开路线列表"
+          className="flex w-full flex-1 flex-col items-center gap-2 pt-3 text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <PanelRightOpen size={14} />
+          <span className="text-[11px] tracking-[.14em] whitespace-nowrap [writing-mode:vertical-rl]">
+            路线 {live.length}
+          </span>
+        </button>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-[56px] shrink-0 items-center justify-between border-b border-line/70 px-3">
         <span className="label">路线 · {live.length}</span>
+        <button
+          onClick={() => setOpenPersist(false)}
+          title="收起路线列表（把宽度让给路线图）"
+          aria-label="收起路线列表"
+          className="flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <PanelRightClose size={13} />
+        </button>
       </div>
 
       <div className="flex-1 space-y-1 overflow-y-auto p-1.5">
@@ -336,7 +387,9 @@ export function BoardList() {
             }}
           />
         </div>
-
+      </div>
+        </div>
+      )}
 
       {previewBoardId &&
         (() => {
@@ -345,7 +398,7 @@ export function BoardList() {
           return (
             <div
               className="fixed z-[60] flex max-h-[72vh] w-[300px] flex-col overflow-hidden rounded-[16px] border border-line/70 bg-surface shadow-e3 anim-pop"
-              style={{ right: 'calc(clamp(210px, 13vw, 260px) + 12px)', top: 96 }}
+              style={{ right: open ? 'calc(clamp(210px, 13vw, 260px) + 12px)' : 42, top: 96 }}
               onDragOver={(e) => e.preventDefault()}
             >
               <div className="border-b border-line/70 px-3 py-2">
@@ -402,7 +455,6 @@ export function BoardList() {
             </div>
           )
         })()}
-      </div>
     </div>
   )
 }
