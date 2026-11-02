@@ -300,12 +300,18 @@
     以前这里 ::hover 会 translateY(-1px)：鼠标停在卡片下边缘 1px 内时，
     卡片抬起 → 指针离开卡片 → 落下 → 指针又进入 → 无限往复，看起来就是「抽动」。
   */
+  /*
+    悬停只改 outline 颜色：不动位置、不动尺寸、不动阴影，也不触发重排。
+    卡片背后就是 SVG 连线层，Safari 真机 GPU 合成时，悬停阴影重绘会把
+    旁边的子卡/连线带得发颤（鼠标在卡片上时像整块在抽动）。outline 是最便宜的提示。
+  */
   .lift {
-    transition: box-shadow var(--dur-2) var(--ease-standard),
-      border-color var(--dur-2) var(--ease-standard), background-color var(--dur-2) var(--ease-standard);
+    outline: 1px solid transparent;
+    outline-offset: -1px;
+    transition: outline-color var(--dur-2) var(--ease-standard);
   }
   .lift:hover {
-    box-shadow: var(--shadow-e2);
+    outline-color: var(--color-line-2);
   }
   .anim-fade-up {
     animation: fade-up var(--dur-4) var(--ease-standard) both;

@@ -416,7 +416,7 @@ export const RouteBoard = memo(function RouteBoard({
         <div ref={wrapRef} className="relative min-w-max px-2">
           {/* 连线层：位置按真实布局算 */}
           <svg
-            className="pointer-events-none absolute top-0 left-0"
+            className="pointer-events-none absolute top-0 left-0 transform-gpu"
             width={box.w}
             height={box.h}
             aria-hidden

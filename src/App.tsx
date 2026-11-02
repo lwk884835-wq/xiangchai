@@ -94,7 +94,7 @@ export default function App() {
         (wide ? (
           <div
             className={cn(
-              'h-full shrink-0 overflow-hidden will-change-[width]',
+              'h-full shrink-0 overflow-hidden',
               'transition-[width] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
               closing || !entered ? 'w-0' : 'w-[clamp(320px,23vw,380px)]',
             )}
