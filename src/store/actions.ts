@@ -47,6 +47,12 @@ interface ActionState {
   setBoardFolder: (boardId: string, folder: string) => void
   /** 右键一键清除某张卡下所有已完成的子任务（连同它们的子树），可撤回 */
   clearDoneChildren: (id: string, boardId?: string) => number
+  /**
+   * 标记「这个任务似乎不太合适」：当前卡片标红，尚未完成的子任务和后续串行步骤标灰，
+   * 但不删除、可撤回/可取消标记。返回被标记的节点数。
+   */
+  markUnsuitable: (id: string, boardId?: string) => number
+  unmarkUnsuitable: (id: string, boardId?: string) => number
 
   addBoard: (b: { jobTitle: string; jobCity?: string; label?: string; folder?: string }) => string
   setActiveBoard: (id: string) => void
@@ -198,6 +204,86 @@ export const useActions = create<ActionState>()(
             nodes: b.nodes.filter((n) => !drop.has(n.id)),
           }))
           return drop.size
+        },
+
+        markUnsuitable: (id, boardId) => {
+          const board = boardOf(boardId)
+          const node = board?.nodes.find((n) => n.id === id)
+          if (!board || !node) return 0
+          const marked = new Set<string>([node.id])
+          // 尚未完成的子任务：带上；已经勾完的保持绿色不动
+          const addUnfinishedKids = (pid: string) => {
+            for (const n of board.nodes) {
+              if (n.parentId !== pid || marked.has(n.id)) continue
+              if (n.done) continue
+              marked.add(n.id)
+              addUnfinishedKids(n.id)
+            }
+          }
+          addUnfinishedKids(node.id)
+          // 同一串里排在它后面的步骤（连同未完成的子任务）
+          const mates = board.nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === node.id)
+          for (const f of at >= 0 ? mates.slice(at + 1) : []) {
+            if (marked.has(f.id)) continue
+            marked.add(f.id)
+            addUnfinishedKids(f.id)
+          }
+          pushHistory('标记不合适')
+          patchBoard(board.id, (b) => ({
+            ...b,
+            nodes: b.nodes.map((n) =>
+              marked.has(n.id)
+                ? { ...n, dropped: true, dropRoot: n.id === node.id }
+                : n,
+            ),
+          }))
+          return marked.size
+        },
+
+        unmarkUnsuitable: (id, boardId) => {
+          const board = boardOf(boardId)
+          const node = board?.nodes.find((n) => n.id === id)
+          if (!board || !node) return 0
+          const clear = new Set<string>([node.id])
+          const addAllKids = (pid: string) => {
+            for (const n of board.nodes) {
+              if (n.parentId !== pid || clear.has(n.id)) continue
+              clear.add(n.id)
+              addAllKids(n.id)
+            }
+          }
+          addAllKids(node.id)
+          const mates = board.nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === node.id)
+          for (const f of at >= 0 ? mates.slice(at + 1) : []) {
+            if (clear.has(f.id)) continue
+            clear.add(f.id)
+            addAllKids(f.id)
+          }
+          // 只清这部分；其它地方的标记不动
+          let n = 0
+          const patch: Record<string, boolean> = {}
+          for (const x of clear) {
+            const cur = board.nodes.find((k) => k.id === x)
+            if (cur?.dropped || cur?.dropRoot) {
+              n++
+              patch[x] = true
+            }
+          }
+          if (!n) return 0
+          pushHistory('取消不合适标记')
+          patchBoard(board.id, (b) => ({
+            ...b,
+            nodes: b.nodes.map((k) =>
+              patch[k.id] ? { ...k, dropped: false, dropRoot: false } : k,
+            ),
+          }))
+          return n
         },
 
         addBoard: (b) => {

@@ -124,7 +124,8 @@ export function graphText(board, maxDepth = 6) {
     const tag = n.branch ? `〔${n.branch}〕` : ''
     const done = n.done ? '✓ ' : ''
     const pin = n.pinned ? '★ ' : ''
-    lines.push(`${pad}- ${pin}${done}${tag}${n.title}`)
+    const drop = n.dropped ? '⊘ ' : ''
+    lines.push(`${pad}- ${drop}${pin}${done}${tag}${n.title}`)
     const block = (label, value) => {
       if (!value) return
       const text = String(value).trim()
@@ -172,6 +173,8 @@ export function readRoute(state, { board: boardKey, node: nodeKey } = {}) {
       purpose: node.purpose ?? '',
       detail: node.detail ?? '',
       notes: node.notes ?? '',
+      dropped: node.dropped === true,
+      dropRoot: node.dropRoot === true,
       parent: parent?.title ?? null,
       prev: idx > 0 ? [chain[idx - 1].title] : [],
       next: idx < chain.length - 1 ? [chain[idx + 1].title] : [],
@@ -211,6 +214,8 @@ const addCreated = (nodes, item, createdBy, orphans) => {
     purpose: String(item.purpose ?? ''),
     detail: String(item.detail ?? ''),
     notes: String(item.notes ?? ''),
+    dropped: item.dropped === true,
+    dropRoot: item.dropped === true,
     level,
     parentId: parent?.id ?? null,
     branch,
@@ -335,6 +340,10 @@ export function applyOps(state, { board: boardKey, op, deleteMode, nodes: items 
     if (item.purpose != null) node.purpose = String(item.purpose)
     if (item.detail != null) node.detail = String(item.detail)
     if (item.notes != null) node.notes = String(item.notes)
+    if (item.dropped != null) {
+      node.dropped = item.dropped === true
+      node.dropRoot = item.dropped === true
+    }
     if (item.branch != null) node.branch = String(item.branch)
     if (item.parallel != null) node.parallel = item.parallel === true
     if (item.pinned != null || item.focus != null) node.pinned = item.pinned !== false

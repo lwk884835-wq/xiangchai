@@ -73,6 +73,7 @@ server.registerTool(
               purpose: z.string().optional().describe('行动目标/目的'),
               detail: z.string().optional().describe('具体怎么做'),
               notes: z.string().optional().describe('其他备注/批注'),
+              dropped: z.boolean().optional().describe('标记「不太合适」：卡片划去/灰掉但保留'),
               level: z.number().optional(),
               parentId: z.string().optional().describe('父节点 id 或标题；update 时换父级'),
               branch: z.string().optional().describe('同一父级下相同 branch=一条串行线，不同=并行多条线'),

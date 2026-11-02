@@ -76,6 +76,8 @@ export const NodeCard = memo(function NodeCard({
   onContextMenu?: (id: string, e: React.MouseEvent) => void
 }) {
   const st = styleOf(node.level)
+  const dropRoot = node.dropRoot === true
+  const dropped = node.dropped === true
   return (
     <div
       data-node-id={node.id}
@@ -89,12 +91,17 @@ export const NodeCard = memo(function NodeCard({
       className={cn(
         'lift group relative shrink-0 rounded-[16px] border',
         st.wrap,
-        // 底色 = 推进速度：搞定 / 进行中 / 还没开始
-        progress === 'done'
-          ? 'border-ok/20 bg-ok-soft/75'
-          : progress === 'doing'
-            ? 'border-accent-line bg-accent-soft/60 shadow-[0_1px_2px_rgba(23,22,26,.04)]'
-            : 'border-transparent bg-surface shadow-e1 hover:border-line/70',
+        // 底色 = 推进速度：搞定 / 进行中 / 还没开始；
+        // 「不太合适」的标记优先：源头红、被带上的子任务/后续任务灰
+        dropRoot
+          ? 'border-danger/30 bg-danger-soft/80'
+          : dropped
+            ? 'border-line/60 bg-surface-3/80 opacity-80'
+            : progress === 'done'
+              ? 'border-ok/20 bg-ok-soft/75'
+              : progress === 'doing'
+                ? 'border-accent-line bg-accent-soft/60 shadow-[0_1px_2px_rgba(23,22,26,.04)]'
+                : 'border-transparent bg-surface shadow-e1 hover:border-line/70',
         node.pinned && 'ring-1 ring-accent-line/70',
         draggable && 'cursor-grab active:cursor-grabbing',
         dragging && 'opacity-40',
@@ -122,28 +129,53 @@ export const NodeCard = memo(function NodeCard({
           <button
             onClick={(e) => {
               e.stopPropagation()
+              if (dropped) return
               onToggle(node.id)
             }}
+            disabled={dropped}
             className={cn(
               'mt-[2px] flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[4px] border transition-all duration-150 active:scale-90',
-              node.done ? 'border-ok bg-ok text-white' : 'border-line-2 hover:border-ink',
+              dropped
+                ? 'cursor-not-allowed border-line-2 bg-surface-3 text-faint'
+                : node.done
+                  ? 'border-ok bg-ok text-white'
+                  : 'border-line-2 hover:border-ink',
             )}
-            title={node.done ? '已完成' : '标记完成'}
+            title={dropped ? '已标记「不太合适」，不参与勾选' : node.done ? '已完成' : '标记完成'}
           >
-            {node.done && <Check size={10} strokeWidth={3} />}
+            {(node.done || dropped) && <Check size={10} strokeWidth={3} />}
           </button>
           <span
             className={cn(
               'min-w-0 flex-1 leading-snug font-semibold',
               st.title,
-              node.done ? 'text-faint line-through decoration-line-2' : 'text-ink',
+              dropRoot
+                ? 'text-danger line-through decoration-danger/50'
+                : dropped
+                  ? 'text-faint line-through decoration-line-2'
+                  : node.done
+                    ? 'text-faint line-through decoration-line-2'
+                    : 'text-ink',
             )}
           >
             {node.title}
+            {dropRoot && (
+              <span className="ml-1.5 inline-block shrink-0 rounded-[4px] bg-danger-soft px-1 py-[1px] align-middle text-[9px] font-normal text-danger ring-1 ring-danger/20">
+                不合适
+              </span>
+            )}
           </span>
         </div>
         {!compact && node.purpose && (
-          <p className={cn('mt-1.5 line-clamp-2 leading-[1.7] text-muted', st.sub)}>{node.purpose}</p>
+          <p
+            className={cn(
+              'mt-1.5 line-clamp-2 leading-[1.7]',
+              dropRoot ? 'text-danger/80' : dropped ? 'text-faint' : 'text-muted',
+              st.sub,
+            )}
+          >
+            {node.purpose}
+          </p>
         )}
       </div>
 

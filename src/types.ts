@@ -22,6 +22,10 @@ export interface ActionNode {
   done: boolean
   /** 是否钉到顶部「重点」清单 */
   pinned: boolean
+  /** 已标记「不太合适」：灰掉/划去，但保留记录 */
+  dropped?: boolean
+  /** 标记的源头卡片：源头用红色，被带上的子任务/后续任务用灰色 */
+  dropRoot?: boolean
   createdAt: number
 }
 
