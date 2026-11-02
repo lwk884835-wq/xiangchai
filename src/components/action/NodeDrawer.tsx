@@ -88,6 +88,14 @@ export function NodeDrawer({
   const [childAtStart, setChildAtStart] = useState(false)
   /** 右键子任务弹出的菜单：位置 + 目标节点 */
   const [menu, setMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null)
+  /** 抽屉里点选中的子任务：串行新增会接在它的后面（相当于「延长这一串」） */
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
+
+  // 选中的子任务被删掉/换了父节点：清掉选中，避免串行接到看不见的节点上
+  useEffect(() => {
+    if (selectedChildId && !kids.some((k) => k.id === selectedChildId)) setSelectedChildId(null)
+  }, [kids, selectedChildId])
+
 
   useEffect(() => {
     if (node) {
@@ -159,33 +167,76 @@ export function NodeDrawer({
     if (collapsed.includes(node.id)) toggleCollapse(node.id, activeBoardId ?? undefined)
 
     /*
-      串行：
-        - 加在最后 → 前置 = 原来的最后一个子任务
-        - 加在最前 → 新任务没有前置，但原来的第一个子任务要改成「前置 = 新任务」
-      并行：不接前置，单独占一条路线（branch 留空时 addNode 自动分配「并行N」）
+      串行怎么接，取决于抽屉里「点选了哪个子任务」：
+        - 选中了某个任务 → 串行就接在它那一条链上（延长这一串）
+          · 加在最后 → 接在它后面（如果它后面还有一步，那一步的前置改接到新任务）
+          · 加在最前 → 新任务成为这一串的第一步（原来的选中任务前置改成新任务）
+        - 没选中 → 接在「同一个 branch 串」的最后一步后面（老行为，但修掉了
+          以前把「所有子任务里最后一条」当上一跳、跨到别的串上的问题）
+      并行：不接前置，单独占一条线（branch 留空时 addNode 自动分配「并行N」）
     */
-    const prev = childAtStart ? null : kids[kids.length - 1]
-    const next = childAtStart ? kids[0] : null
-    const newId = addNode({
+    const base = {
       title: childTitle.trim(),
       purpose: childPurpose.trim(),
       detail: childDetail.trim(),
       level: node.level + 1,
       parentId: node.id,
-      branch: childBranch.trim() || (childParallel ? '' : node.branch || ''),
-      parallel: childParallel,
-      deps: !childParallel && prev ? [prev.id] : [],
-      // 插到原来的第一个子任务前面，列表顺序才是「在最前」
-      beforeId: childAtStart && next ? next.id : undefined,
-    })
-    // 串行 + 加在最前：把原来那个第一个子任务的前置改成新节点。
-    // 以前这里写成了 [next.id]，等于让任务依赖自己，图上是条死链。
-    if (childAtStart && next && !childParallel) {
-      updateNode(next.id, { deps: [newId] })
     }
+    const selected = kids.find((k) => k.id === selectedChildId) ?? null
+    let newId: string
+
+    if (childParallel) {
+      newId = addNode({ ...base, branch: childBranch.trim(), parallel: true, deps: [] })
+    } else if (selected) {
+      const branch = childBranch.trim() || selected.branch || node.branch || ''
+      const mates = kids.filter((k) => (k.branch || '') === (selected.branch || ''))
+      const at = mates.findIndex((k) => k.id === selected.id)
+      const next = at >= 0 ? (mates[at + 1] ?? null) : null
+      if (childAtStart) {
+        // 插到选中任务前面：如果它前面还有一步，新任务接那一步，再把选中任务的前置改成新任务
+        const prevMate = at > 0 ? mates[at - 1] : null
+        newId = addNode({
+          ...base,
+          branch,
+          parallel: false,
+          deps: prevMate ? [prevMate.id] : [],
+          beforeId: selected.id,
+        })
+        updateNode(selected.id, { deps: [newId] })
+      } else {
+        newId = addNode({
+          ...base,
+          branch,
+          parallel: false,
+          deps: [selected.id],
+          beforeId: next ? next.id : undefined,
+        })
+        if (next) updateNode(next.id, { deps: [newId] })
+      }
+    } else {
+      const branch = childBranch.trim() || node.branch || ''
+      const mates = kids.filter((k) => (k.branch || '') === branch)
+      if (childAtStart) {
+        const first = mates[0] ?? null
+        newId = addNode({
+          ...base,
+          branch,
+          parallel: false,
+          deps: [],
+          beforeId: first ? first.id : undefined,
+        })
+        if (first) updateNode(first.id, { deps: [newId] })
+      } else {
+        const prev = mates[mates.length - 1] ?? null
+        newId = addNode({ ...base, branch, parallel: false, deps: prev ? [prev.id] : [] })
+      }
+    }
+
     setChildTitle('')
     setChildPurpose('')
     setChildDetail('')
+    // 选中新任务：连续添加时就自然往后延长这一串
+    setSelectedChildId(newId)
     toast(`已添加子任务：${childTitle.trim()}`)
     revealNode(newId)
   }
@@ -403,7 +454,14 @@ export function NodeDrawer({
           <div>
             <div className="flex items-baseline justify-between">
               <label className="label">子任务（{kids.length}）</label>
-              <span className="text-[10px] text-faint">右键任务可独立成线</span>
+              <span className="max-w-[62%] truncate text-[10px] text-faint">
+                {(() => {
+                  const sel = kids.find((k) => k.id === selectedChildId)
+                  return sel
+                    ? `已选中「${sel.title}」· 串行接在它后面`
+                    : '点选子任务可指定串行位置 · 右键可独立成线'
+                })()}
+              </span>
             </div>
             <div className="mt-1 space-y-1.5">
               {kidGroups.map((group) => (
@@ -415,16 +473,25 @@ export function NodeDrawer({
                   {group.map((k) => (
                     <div
                       key={k.id}
+                      onClick={() => setSelectedChildId(selectedChildId === k.id ? null : k.id)}
                       onContextMenu={(e) => {
                         // mac 触控板双指按压 = contextmenu：打开「独立成线」菜单
                         e.preventDefault()
                         e.stopPropagation()
                         setMenu({ nodeId: k.id, x: e.clientX, y: e.clientY })
                       }}
-                      className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-surface-3/70"
+                      className={cn(
+                        'group flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors',
+                        selectedChildId === k.id
+                          ? 'bg-accent-soft/70 ring-1 ring-accent-line'
+                          : 'hover:bg-surface-3/70',
+                      )}
                     >
                       <button
-                        onClick={() => toggleNode(k.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleNode(k.id)
+                        }}
                         className={cn(
                           'flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-[3px] border',
                           k.done ? 'border-ok bg-ok text-white' : 'border-line-2',
@@ -434,7 +501,10 @@ export function NodeDrawer({
                       </button>
                       <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{k.title}</span>
                       <button
-                        onClick={() => removeNode(k.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeNode(k.id)
+                        }}
                         className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-danger-soft hover:text-danger"
                       >
                         <Trash2 size={11} />
