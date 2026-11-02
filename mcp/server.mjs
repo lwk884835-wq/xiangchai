@@ -70,8 +70,9 @@ server.registerTool(
             .object({
               id: z.string().optional().describe('update/delete/focus/detach 用：节点 id 或标题'),
               title: z.string().optional(),
-              purpose: z.string().optional(),
-              detail: z.string().optional(),
+              purpose: z.string().optional().describe('行动目标/目的'),
+              detail: z.string().optional().describe('具体怎么做'),
+              notes: z.string().optional().describe('其他备注/批注'),
               level: z.number().optional(),
               parentId: z.string().optional().describe('父节点 id 或标题；update 时换父级'),
               branch: z.string().optional().describe('同一父级下相同 branch=一条串行线，不同=并行多条线'),
@@ -131,13 +132,15 @@ server.registerTool(
   'manage_routes',
   {
     title: '管理路线本身',
-    description: '新建 / 改名 / 归档 / 恢复 / 删除 / 切换当前路线 / 列出路线。',
+    description:
+      '新建 / 改名 / 归档 / 恢复 / 删除 / 切换当前路线 / 列出路线 / 设置所属文件夹（op=folder）。',
     inputSchema: {
-      op: z.enum(['list', 'create', 'rename', 'archive', 'restore', 'delete', 'select']),
+      op: z.enum(['list', 'create', 'rename', 'archive', 'restore', 'delete', 'select', 'folder']),
       board: z.string().optional().describe('目标路线：名字/id/标签'),
       title: z.string().optional(),
       label: z.string().optional(),
       city: z.string().optional(),
+      folder: z.string().optional().describe('所属文件夹（空字符串=未分类）'),
     },
   },
   run((state, args) => core.manageRoutes(state, args)),

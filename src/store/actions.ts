@@ -39,8 +39,16 @@ interface ActionState {
   focusItems: FocusItem[]
   /** 折叠状态，按路线分：{ [boardId]: string[] } */
   collapsed: Record<string, string[]>
+  /** 路线文件夹（右栏用来归纳路线；顺序即显示顺序） */
+  folders: string[]
 
-  addBoard: (b: { jobTitle: string; jobCity?: string; label?: string }) => string
+  addFolder: (name: string) => string
+  removeFolder: (name: string) => void
+  setBoardFolder: (boardId: string, folder: string) => void
+  /** 右键一键清除某张卡下所有已完成的子任务（连同它们的子树），可撤回 */
+  clearDoneChildren: (id: string, boardId?: string) => number
+
+  addBoard: (b: { jobTitle: string; jobCity?: string; label?: string; folder?: string }) => string
   setActiveBoard: (id: string) => void
   removeBoard: (id: string) => void
   archiveBoard: (id: string) => void
@@ -142,8 +150,55 @@ export const useActions = create<ActionState>()(
         activeBoardId: null,
         focusItems: [],
         collapsed: {},
+        folders: [],
         history: [],
         clipboard: null,
+
+        addFolder: (name) => {
+          const clean = name.trim()
+          if (!clean) return ''
+          set((s) => ({ folders: s.folders.includes(clean) ? s.folders : [...s.folders, clean] }))
+          return clean
+        },
+
+        removeFolder: (name) =>
+          set((s) => ({
+            folders: s.folders.filter((f) => f !== name),
+            boards: s.boards.map((b) => (b.folder === name ? { ...b, folder: '' } : b)),
+          })),
+
+        setBoardFolder: (boardId, folder) =>
+          set((s) => ({
+            boards: s.boards.map((b) => (b.id === boardId ? { ...b, folder: folder || '' } : b)),
+            folders:
+              folder && !s.folders.includes(folder) ? [...s.folders, folder] : s.folders,
+          })),
+
+        clearDoneChildren: (id, boardId) => {
+          const board = boardOf(boardId)
+          if (!board) return 0
+          const drop = new Set<string>()
+          const addSubtree = (rootId: string) => {
+            if (drop.has(rootId)) return
+            drop.add(rootId)
+            for (const n of board.nodes) if (n.parentId === rootId) addSubtree(n.id)
+          }
+          const walk = (pid: string) => {
+            for (const n of board.nodes) {
+              if (n.parentId !== pid) continue
+              if (n.done) addSubtree(n.id)
+              else walk(n.id)
+            }
+          }
+          walk(id)
+          if (!drop.size) return 0
+          pushHistory('清除已完成子任务')
+          patchBoard(board.id, (b) => ({
+            ...b,
+            nodes: b.nodes.filter((n) => !drop.has(n.id)),
+          }))
+          return drop.size
+        },
 
         addBoard: (b) => {
           const id = `bd-${uid()}`
@@ -152,6 +207,7 @@ export const useActions = create<ActionState>()(
             jobTitle: b.jobTitle,
             jobCity: b.jobCity ?? '',
             label: b.label ?? '',
+            folder: b.folder ?? '',
             createdAt: Date.now(),
             nodes: [],
             archived: false,
@@ -871,6 +927,7 @@ export const useActions = create<ActionState>()(
             jobTitle: String(b.jobTitle ?? '未命名路线'),
             jobCity: String(b.jobCity ?? ''),
             label: String(b.label ?? ''),
+            folder: String(b.folder ?? ''),
             createdAt: Number(b.createdAt ?? Date.now()),
             archived: !!b.archived,
             nodes: Array.isArray(b.nodes)
@@ -881,12 +938,16 @@ export const useActions = create<ActionState>()(
           p.collapsed && typeof p.collapsed === 'object' && !Array.isArray(p.collapsed)
             ? p.collapsed
             : {}
+        const folders = Array.isArray(p.folders)
+          ? [...new Set(p.folders.filter((f): f is string => typeof f === 'string' && !!f.trim()))]
+          : []
         return {
           ...current,
           ...p,
           boards,
           focusItems: Array.isArray(p.focusItems) ? p.focusItems : [],
           collapsed,
+          folders,
           activeBoardId:
             boards.find((b) => b.id === p.activeBoardId)?.id ?? boards[0]?.id ?? null,
           // 撤销栈不落盘：恢复上一次的删除快照会跨刷新出错

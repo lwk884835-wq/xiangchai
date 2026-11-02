@@ -53,16 +53,17 @@ ROUTE_DATA_FILE=../data/routes.json node call.mjs list_routes
 
 | 工具 | 作用 |
 |---|---|
-| `list_routes` | 列出所有路线 |
-| `read_route` | 读整棵树的缩进文本，或某个任务的位置 |
-| `apply_plan_ops` | create / update / delete（deleteMode=only\|cascade）/ focus / detach / replace |
+| `list_routes` | 列出所有路线（含所属文件夹） |
+| `read_route` | 读整棵树的缩进文本（含目的/做法/备注批注），或某个任务的位置与完整字段 |
+| `apply_plan_ops` | create / update / delete（deleteMode=only\|cascade）/ focus / detach / replace；节点支持 purpose/detail/notes |
 | `move_nodes` | child（整串搬）/ before・after（单卡调序）/ board（跨路线） |
 | `set_done` | 勾选/取消（按网页级联规则） |
-| `manage_routes` | 路线的新建/改名/归档/恢复/删除/切换 |
+| `manage_routes` | 路线的新建/改名/归档/恢复/删除/切换/设置文件夹（op=folder） |
 | `focus_items` | 顶部「重点」里临时事项的加/勾/取消/删 |
 
 ## 注意
 
 - 只读写本地文件，不需要网络、不会外传。
 - 网页没开也能改；下次打开网页会以文件为准加载。
-- 建议在 `mcp/` 目录外先备份 `data/routes.json`（或直接用网页的「导出数据」）。
+- `call.mjs` 调试 CLI 默认读写开发版 `data/routes.json`；想调真实数据显式传 `ROUTE_DATA_FILE=../data/routes-stable.json`。
+- 建议在 `mcp/` 目录外先备份数据文件（或直接用网页的「导出数据」）。

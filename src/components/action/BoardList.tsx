@@ -4,6 +4,10 @@ import {
   Check,
   ChevronDown,
   Download,
+  Folder,
+  FolderInput,
+  FolderMinus,
+  FolderPlus,
   Pencil,
   PanelRightClose,
   PanelRightOpen,
@@ -13,7 +17,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
-import type { ActionNode } from '@/types'
+import type { ActionBoard, ActionNode } from '@/types'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
 
@@ -31,6 +35,10 @@ export function BoardList() {
   const archiveBoard = useActions((s) => s.archiveBoard)
   const restoreBoard = useActions((s) => s.restoreBoard)
   const moveSubtreeToBoard = useActions((s) => s.moveSubtreeToBoard)
+  const folders = useActions((s) => s.folders)
+  const addFolder = useActions((s) => s.addFolder)
+  const removeFolder = useActions((s) => s.removeFolder)
+  const setBoardFolder = useActions((s) => s.setBoardFolder)
   const renameBoard = useActions((s) => s.renameBoard)
   const exportData = useActions((s) => s.exportData)
   const importData = useActions((s) => s.importData)
@@ -92,6 +100,31 @@ export function BoardList() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [folderDraft, setFolderDraft] = useState('')
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const [folderMenuBoardId, setFolderMenuBoardId] = useState<string | null>(null)
+  const [folderMenuDraft, setFolderMenuDraft] = useState('')
+
+  const createFolder = () => {
+    const name = folderDraft.trim()
+    if (!name) {
+      setCreatingFolder(false)
+      return
+    }
+    addFolder(name)
+    setFolderDraft('')
+    setCreatingFolder(false)
+    toast(`已创建文件夹「${name}」`)
+  }
+
+  const toggleFolder = (name: string) =>
+    setCollapsedFolders((cur) => {
+      const next = new Set(cur)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
   /** 右侧栏是否展开：收起后把宽度让给行动路线 */
   const [open, setOpen] = useState(() => {
     try {
@@ -141,6 +174,142 @@ export function BoardList() {
     setEditDraft('')
   }
 
+  const renderRoute = (b: ActionBoard) => {
+    const active = b.id === activeId
+    const progress = actionProgress(b.nodes)
+    return (
+      <div
+        key={b.id}
+        onDragEnter={(e) => {
+          if (!e.dataTransfer.types.includes('application/x-route-node')) return
+          if (b.id === activeId) return
+          setPreviewBoardId(b.id)
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('application/x-route-node')) return
+          if (b.id === activeId) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setDropBoardId(b.id)
+          setPreviewBoardId(b.id)
+        }}
+        onDragLeave={() => setDropBoardId((cur) => (cur === b.id ? null : cur))}
+        onDrop={(e) => {
+          if (b.id === activeId) return
+          e.preventDefault()
+          const id = e.dataTransfer.getData('application/x-route-node')
+          setDropBoardId(null)
+          if (!id) return
+          moveSubtreeToBoard(id, b.id)
+          toast(`已搬到「${b.jobTitle}」`)
+        }}
+        className={cn(
+          'group relative rounded-[10px] border px-3 py-2.5 transition-all duration-150',
+          active ? 'border-line bg-surface shadow-e1' : 'border-transparent hover:bg-surface-3/70',
+          dropBoardId === b.id && 'border-accent-line bg-accent-soft/60 ring-1 ring-accent-line',
+        )}
+      >
+        {active && (
+          <span className="absolute top-2.5 bottom-2.5 left-0 w-[2px] rounded-full bg-accent" />
+        )}
+        <div className="flex items-start gap-1">
+          {editingId === b.id ? (
+            <input
+              autoFocus
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') {
+                  setEditingId(null)
+                  setEditDraft('')
+                }
+              }}
+              className="field h-7 min-w-0 flex-1 px-1.5 text-[13px]"
+            />
+          ) : (
+            <button onClick={() => setActive(b.id)} className="min-w-0 flex-1 text-left">
+              <div className="truncate text-[13px] leading-snug font-medium tracking-tight text-ink">
+                {b.jobTitle}
+              </div>
+              <div className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-faint">
+                {b.jobCity && <span>{b.jobCity}</span>}
+                {b.jobCity && b.label && <span>·</span>}
+                {b.label && <span>{b.label}</span>}
+                {!b.jobCity && !b.label && <span>本地路线</span>}
+                <span>·</span>
+                <span className="num">{b.nodes.length} 个任务</span>
+              </div>
+              {progress > 0 && (
+                <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-surface-3">
+                  <div
+                    className="h-full rounded-full bg-ok transition-[width] duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              )}
+            </button>
+          )}
+          <div className="flex shrink-0 flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <button
+              onClick={() => {
+                setFolderMenuBoardId(b.id)
+                setFolderMenuDraft('')
+              }}
+              title="移动到文件夹"
+              className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              <FolderInput size={11} />
+            </button>
+            <button
+              onClick={() => startRename(b.id, b.jobTitle)}
+              title="改名字"
+              className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              {editingId === b.id ? <Check size={11} /> : <Pencil size={11} />}
+            </button>
+            <button
+              onClick={() => archiveBoard(b.id)}
+              title="归档（可恢复）"
+              className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              <Archive size={11} />
+            </button>
+            <button
+              onClick={() => setConfirmId(b.id)}
+              title="删除"
+              className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-danger"
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        </div>
+
+        {confirmId === b.id && (
+          <div className="mt-2 flex items-center gap-1.5 border-t border-line pt-2">
+            <span className="text-[11px] text-muted">删掉这条路线？</span>
+            <button
+              onClick={() => {
+                removeBoard(b.id)
+                setConfirmId(null)
+              }}
+              className="ml-auto rounded-md bg-danger px-1.5 py-[2px] text-[11px] text-white transition-opacity hover:opacity-85"
+            >
+              删除
+            </button>
+            <button
+              onClick={() => setConfirmId(null)}
+              className="rounded-md border border-line px-1.5 py-[2px] text-[11px] text-muted transition-colors hover:bg-surface-3"
+            >
+              取消
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       className={cn(
@@ -167,142 +336,94 @@ export function BoardList() {
         <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-[56px] shrink-0 items-center justify-between border-b border-line/70 px-3">
         <span className="label">路线 · {live.length}</span>
-        <button
-          onClick={() => setOpenPersist(false)}
-          title="收起路线列表（把宽度让给路线图）"
-          aria-label="收起路线列表"
-          className="flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3 hover:text-ink"
-        >
-          <PanelRightClose size={13} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => setCreatingFolder((v) => !v)}
+            title="新建文件夹"
+            aria-label="新建文件夹"
+            className="flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+          >
+            <FolderPlus size={13} />
+          </button>
+          <button
+            onClick={() => setOpenPersist(false)}
+            title="收起路线列表（把宽度让给路线图）"
+            aria-label="收起路线列表"
+            className="flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+          >
+            <PanelRightClose size={13} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 space-y-1 overflow-y-auto p-1.5">
-        {live.map((b) => {
-          const active = b.id === activeId
-          const progress = actionProgress(b.nodes)
-          return (
-            <div
-              key={b.id}
-              onDragEnter={(e) => {
-                if (!e.dataTransfer.types.includes('application/x-route-node')) return
-                if (b.id === activeId) return
-                setPreviewBoardId(b.id)
+        {creatingFolder && (
+          <div className="flex items-center gap-1 pb-1">
+            <input
+              autoFocus
+              value={folderDraft}
+              onChange={(e) => setFolderDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') createFolder()
+                if (e.key === 'Escape') {
+                  setCreatingFolder(false)
+                  setFolderDraft('')
+                }
               }}
-              onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes('application/x-route-node')) return
-                if (b.id === activeId) return
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-                setDropBoardId(b.id)
-                setPreviewBoardId(b.id)
-              }}
-              onDragLeave={() => setDropBoardId((cur) => (cur === b.id ? null : cur))}
-              onDrop={(e) => {
-                if (b.id === activeId) return
-                e.preventDefault()
-                const id = e.dataTransfer.getData('application/x-route-node')
-                setDropBoardId(null)
-                if (!id) return
-                moveSubtreeToBoard(id, b.id)
-                toast(`已搬到「${b.jobTitle}」`)
-              }}
-              className={cn(
-                'group relative rounded-[10px] border px-3 py-2.5 transition-all duration-150',
-                active ? 'border-line bg-surface shadow-e1' : 'border-transparent hover:bg-surface-3/70',
-                dropBoardId === b.id && 'border-accent-line bg-accent-soft/60 ring-1 ring-accent-line',
-              )}
+              placeholder="文件夹名字（回车创建）"
+              className="field h-7 min-w-0 flex-1 px-2 text-[12px]"
+            />
+            <button
+              onClick={createFolder}
+              className="rounded-md bg-ink px-2 py-[3px] text-[11px] text-white"
             >
-              {active && (
-                <span className="absolute top-2.5 bottom-2.5 left-0 w-[2px] rounded-full bg-accent" />
-              )}
-              <div className="flex items-start gap-1">
-                {editingId === b.id ? (
-                  <input
-                    autoFocus
-                    value={editDraft}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitRename()
-                      if (e.key === 'Escape') {
-                        setEditingId(null)
-                        setEditDraft('')
-                      }
-                    }}
-                    className="field h-7 min-w-0 flex-1 px-1.5 text-[13px]"
-                  />
-                ) : (
-                  <button onClick={() => setActive(b.id)} className="min-w-0 flex-1 text-left">
-                    <div className="truncate text-[13px] leading-snug font-medium tracking-tight text-ink">
-                      {b.jobTitle}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-faint">
-                      {b.jobCity && <span>{b.jobCity}</span>}
-                      {b.jobCity && b.label && <span>·</span>}
-                      {b.label && <span>{b.label}</span>}
-                      {!b.jobCity && !b.label && <span>本地路线</span>}
-                      <span>·</span>
-                      <span className="num">{b.nodes.length} 个任务</span>
-                    </div>
-                    {progress > 0 && (
-                      <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-surface-3">
-                        <div
-                          className="h-full rounded-full bg-ok transition-[width] duration-500"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    )}
-                  </button>
-                )}
-                <div className="flex shrink-0 flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                  <button
-                    onClick={() => startRename(b.id, b.jobTitle)}
-                    title="改名字"
-                    className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
-                  >
-                    {editingId === b.id ? <Check size={11} /> : <Pencil size={11} />}
-                  </button>
-                  <button
-                    onClick={() => archiveBoard(b.id)}
-                    title="归档（可恢复）"
-                    className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
-                  >
-                    <Archive size={11} />
-                  </button>
-                  <button
-                    onClick={() => setConfirmId(b.id)}
-                    title="删除"
-                    className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-danger"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-              </div>
+              建
+            </button>
+          </div>
+        )}
 
-              {confirmId === b.id && (
-                <div className="mt-2 flex items-center gap-1.5 border-t border-line pt-2">
-                  <span className="text-[11px] text-muted">删掉这条路线？</span>
-                  <button
-                    onClick={() => {
-                      removeBoard(b.id)
-                      setConfirmId(null)
-                    }}
-                    className="ml-auto rounded-md bg-danger px-1.5 py-[2px] text-[11px] text-white transition-opacity hover:opacity-85"
-                  >
-                    删除
-                  </button>
-                  <button
-                    onClick={() => setConfirmId(null)}
-                    className="rounded-md border border-line px-1.5 py-[2px] text-[11px] text-muted transition-colors hover:bg-surface-3"
-                  >
-                    取消
-                  </button>
-                </div>
-              )}
+        {folders.map((name) => {
+          const routes = live.filter((b) => (b.folder || '') === name)
+          const folded = collapsedFolders.has(name)
+          return (
+            <div key={name}>
+              <div className="group/folder flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface-3">
+                <button
+                  onClick={() => toggleFolder(name)}
+                  className="flex min-w-0 flex-1 items-center gap-1 text-left"
+                >
+                  <ChevronDown
+                    size={11}
+                    className={cn('shrink-0 transition-transform', folded && '-rotate-90')}
+                  />
+                  <Folder size={11} className="shrink-0 text-faint" />
+                  <span className="truncate">{name}</span>
+                  <span className="num shrink-0 text-faint">{routes.length}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    removeFolder(name)
+                    toast(`已删除文件夹「${name}」，里面的路线回到未分类`)
+                  }}
+                  title="删除文件夹（里面的路线回到未分类）"
+                  className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover/folder:opacity-100 hover:bg-surface-3 hover:text-danger"
+                >
+                  <FolderMinus size={11} />
+                </button>
+              </div>
+              {!folded && <div className="space-y-1">{routes.map(renderRoute)}</div>}
             </div>
           )
         })}
+
+        <div className="space-y-1">
+          {folders.length > 0 && (
+            <div className="px-1.5 py-1 text-[11px] text-faint">
+              未分类 · {live.filter((b) => !b.folder).length}
+            </div>
+          )}
+          {live.filter((b) => !b.folder).map(renderRoute)}
+        </div>
 
         {archived.length > 0 && (
           <div className="pt-1">
@@ -462,6 +583,77 @@ export function BoardList() {
             </div>
           )
         })()}
+
+      {folderMenuBoardId &&
+        (() => {
+          const targetBoard = boards.find((b) => b.id === folderMenuBoardId)
+          if (!targetBoard) return null
+          const moveTo = (folder: string) => {
+            setBoardFolder(folderMenuBoardId, folder)
+            setFolderMenuBoardId(null)
+            setFolderMenuDraft('')
+            toast(`已归到「${folder || '未分类'}」`)
+          }
+          return (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setFolderMenuBoardId(null)} />
+              <div
+                className="fixed z-50 w-[204px] overflow-hidden rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3 anim-pop"
+                style={{ right: 'calc(clamp(210px, 13vw, 260px) + 14px)', top: 132 }}
+              >
+                <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">
+                  把「{targetBoard.jobTitle}」放到
+                </div>
+                <button
+                  onClick={() => moveTo('')}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                >
+                  <Folder size={12} className="shrink-0" />
+                  未分类
+                </button>
+                {folders.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => moveTo(f)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                  >
+                    <Folder size={12} className="shrink-0" />
+                    <span className="truncate">{f}</span>
+                  </button>
+                ))}
+                <div className="my-1 h-px bg-line/70" />
+                <div className="flex items-center gap-1 px-1 pb-1">
+                  <input
+                    value={folderMenuDraft}
+                    onChange={(e) => setFolderMenuDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const name = folderMenuDraft.trim()
+                        if (!name) return
+                        addFolder(name)
+                        moveTo(name)
+                      }
+                    }}
+                    placeholder="新建文件夹并放入"
+                    className="field h-7 min-w-0 flex-1 px-2 text-[11px]"
+                  />
+                  <button
+                    onClick={() => {
+                      const name = folderMenuDraft.trim()
+                      if (!name) return
+                      addFolder(name)
+                      moveTo(name)
+                    }}
+                    className="rounded-md bg-ink px-2 py-[3px] text-[11px] text-white"
+                  >
+                    建
+                  </button>
+                </div>
+              </div>
+            </>
+          )
+        })()}
+
     </div>
   )
 }

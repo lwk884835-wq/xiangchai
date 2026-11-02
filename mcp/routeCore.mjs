@@ -27,7 +27,7 @@ const fid = () => `fi-${Math.random().toString(36).slice(2, 10)}`
 
 export function load() {
   if (!existsSync(dataFile)) {
-    return { version: 1, updatedAt: 0, boards: [], focusItems: [], collapsed: {}, activeBoardId: null }
+    return { version: 1, updatedAt: 0, boards: [], focusItems: [], collapsed: {}, folders: [], activeBoardId: null }
   }
   const data = JSON.parse(readFileSync(dataFile, 'utf8'))
   return {
@@ -36,6 +36,7 @@ export function load() {
     boards: Array.isArray(data.boards) ? data.boards : [],
     focusItems: Array.isArray(data.focusItems) ? data.focusItems : [],
     collapsed: data.collapsed && typeof data.collapsed === 'object' ? data.collapsed : {},
+    folders: Array.isArray(data.folders) ? data.folders : [],
     activeBoardId: data.activeBoardId ?? null,
   }
 }
@@ -124,7 +125,17 @@ export function graphText(board, maxDepth = 6) {
     const done = n.done ? '✓ ' : ''
     const pin = n.pinned ? '★ ' : ''
     lines.push(`${pad}- ${pin}${done}${tag}${n.title}`)
-    if (n.purpose) lines.push(`${pad}  · ${n.purpose}`)
+    const block = (label, value) => {
+      if (!value) return
+      const text = String(value).trim()
+      if (!text) return
+      const parts = text.split(/\r?\n/)
+      lines.push(`${pad}  · ${label ? label + '：' : ''}${parts[0]}`)
+      for (const extra of parts.slice(1)) lines.push(`${pad}    ${extra}`)
+    }
+    block('', n.purpose)
+    block('做法', n.detail)
+    block('备注', n.notes)
     for (const c of kidsOf(nodes, n.id)) walk(c, depth + 1)
   }
   for (const r of nodes.filter((n) => !n.parentId)) walk(r, 1)
@@ -140,6 +151,7 @@ export function listRoutes(state) {
     nodes: b.nodes.length,
     archived: b.archived,
     active: b.id === state.activeBoardId,
+    folder: b.folder ?? '',
   }))
 }
 
@@ -157,6 +169,9 @@ export function readRoute(state, { board: boardKey, node: nodeKey } = {}) {
       board: board.jobTitle,
       node: node.title,
       level: node.level,
+      purpose: node.purpose ?? '',
+      detail: node.detail ?? '',
+      notes: node.notes ?? '',
       parent: parent?.title ?? null,
       prev: idx > 0 ? [chain[idx - 1].title] : [],
       next: idx < chain.length - 1 ? [chain[idx + 1].title] : [],
@@ -195,6 +210,7 @@ const addCreated = (nodes, item, createdBy, orphans) => {
     title: String(item.title ?? '新任务'),
     purpose: String(item.purpose ?? ''),
     detail: String(item.detail ?? ''),
+    notes: String(item.notes ?? ''),
     level,
     parentId: parent?.id ?? null,
     branch,
@@ -318,6 +334,7 @@ export function applyOps(state, { board: boardKey, op, deleteMode, nodes: items 
     if (item.title != null) node.title = String(item.title)
     if (item.purpose != null) node.purpose = String(item.purpose)
     if (item.detail != null) node.detail = String(item.detail)
+    if (item.notes != null) node.notes = String(item.notes)
     if (item.branch != null) node.branch = String(item.branch)
     if (item.parallel != null) node.parallel = item.parallel === true
     if (item.pinned != null || item.focus != null) node.pinned = item.pinned !== false
@@ -557,14 +574,20 @@ export function setDone(state, { nodes: items = [] }) {
   return { changed, failed, graph: graphText(board) }
 }
 
-export function manageRoutes(state, { op, board: key, title, label, city }) {
-  if (op === 'list') return { boards: listRoutes(state) }
+export function manageRoutes(state, { op, board: key, title, label, city, folder }) {
+  if (op === 'list') return { boards: listRoutes(state), folders: state.folders ?? [] }
   if (op === 'create') {
     const { board } = ensureBoard(state, title || '新路线')
     if (label != null) board.label = String(label)
     if (city != null) board.jobCity = String(city)
+    if (folder != null) {
+      board.folder = String(folder)
+      if (String(folder) && !(state.folders ?? []).includes(String(folder))) {
+        state.folders = [...(state.folders ?? []), String(folder)]
+      }
+    }
     state.activeBoardId = board.id
-    return { created: board.jobTitle, boards: listRoutes(state) }
+    return { created: board.jobTitle, boards: listRoutes(state), folders: state.folders ?? [] }
   }
   const board = findBoard(state, key)
   if (!board) return { ok: false, reason: '没找到这条路线', boards: listRoutes(state) }
@@ -581,8 +604,19 @@ export function manageRoutes(state, { op, board: key, title, label, city }) {
     if (state.activeBoardId === board.id) state.activeBoardId = state.boards[0]?.id ?? null
   } else if (op === 'select') {
     state.activeBoardId = board.id
+  } else if (op === 'folder') {
+    board.folder = String(folder ?? '')
+    if (folder && !(state.folders ?? []).includes(String(folder))) {
+      state.folders = [...(state.folders ?? []), String(folder)]
+    }
   }
-  return { ok: true, op, board: board.jobTitle, boards: listRoutes(state) }
+  if (folder != null && op !== 'folder') {
+    board.folder = String(folder)
+    if (folder && !(state.folders ?? []).includes(String(folder))) {
+      state.folders = [...(state.folders ?? []), String(folder)]
+    }
+  }
+  return { ok: true, op, board: board.jobTitle, boards: listRoutes(state), folders: state.folders ?? [] }
 }
 
 export function focusItems(state, { op, id, text }) {

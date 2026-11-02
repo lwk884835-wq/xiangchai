@@ -33,6 +33,8 @@ export interface ActionBoard {
   jobCity: string
   /** 区分名，比如「主计划」「备用」 */
   label: string
+  /** 归属文件夹（空/undefined = 未分类） */
+  folder?: string
   createdAt: number
   nodes: ActionNode[]
   archived: boolean

@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, ClipboardPaste, Copy, ListChecks, Plus, Trash2 } from 'lucide-react'
+import { CheckCheck, ChevronRight, ClipboardPaste, Copy, ListChecks, Plus, Trash2 } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -240,6 +240,7 @@ export const RouteBoard = memo(function RouteBoard({
   const copyNodes = useActions((s) => s.copyNodes)
   const pasteNodes = useActions((s) => s.pasteNodes)
   const deleteNode = useActions((s) => s.deleteNode)
+  const clearDoneChildren = useActions((s) => s.clearDoneChildren)
   const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
   /** 右键菜单：nodeId 为空 = 点在空白画布上 */
@@ -645,6 +646,19 @@ export const RouteBoard = memo(function RouteBoard({
   const ctxMenuView = ctxMenu
     ? (() => {
         const target = ctxMenu.nodeId ? nodes.find((n) => n.id === ctxMenu.nodeId) : null
+        const hasDoneDesc = (() => {
+          if (!target) return false
+          const stack = [target.id]
+          while (stack.length) {
+            const pid = stack.pop() as string
+            for (const n of nodes) {
+              if (n.parentId !== pid) continue
+              if (n.done) return true
+              stack.push(n.id)
+            }
+          }
+          return false
+        })()
         return (
           <>
             <div
@@ -695,6 +709,24 @@ export const RouteBoard = memo(function RouteBoard({
                     效果和把卡片拖到它上面一样，接在它下面单独成一条线
                   </p>
                   <div className="my-1 h-px bg-line/70" />
+                  {hasDoneDesc && (
+                    <button
+                      onClick={() => {
+                        const n = clearDoneChildren(target.id)
+                        toast(`已清除 ${n} 个已完成的子任务`)
+                        setCtxMenu(null)
+                      }}
+                      className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                    >
+                      <CheckCheck size={12} className="mt-[3px] shrink-0" />
+                      <span>
+                        清除已完成的子任务
+                        <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                          只清勾选完成的，其它不动
+                        </span>
+                      </span>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       deleteNode(target.id, 'only')
