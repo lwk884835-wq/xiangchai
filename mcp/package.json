@@ -1,0 +1,15 @@
+{
+  "name": "work-route-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "工作路线 MCP server：让外部 Agent 读写行动路线（同一个 data/routes.json）",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test-client.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.0",
+    "zod": "^3.25.0"
+  }
+}

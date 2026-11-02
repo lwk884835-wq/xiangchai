@@ -11,7 +11,7 @@
  * /api/chat 也会代理（稳定版里的路线助手要能用），key 读 .env.local。
  */
 import { createServer } from 'node:http'
-import { readFileSync, existsSync, realpathSync, statSync } from 'node:fs'
+import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -111,6 +111,90 @@ async function proxyChat(req, res) {
   }
 }
 
+/* ---------- 本地数据 API（给 MCP / 外部 Agent 用，和开发版同一套协议） ---------- */
+const routesFile =
+  process.env.ROUTE_DATA_FILE ?? path.join(root, 'data', 'routes-stable.json')
+const sseClients = new Set()
+let routesBroadcastTimer = null
+const broadcastRoutes = () => {
+  if (routesBroadcastTimer) clearTimeout(routesBroadcastTimer)
+  routesBroadcastTimer = setTimeout(() => {
+    for (const res of sseClients) {
+      try {
+        res.write('data: changed\n\n')
+      } catch {
+        sseClients.delete(res)
+      }
+    }
+  }, 100)
+}
+try {
+  mkdirSync(path.dirname(routesFile), { recursive: true })
+  const w = watch(path.dirname(routesFile), { persistent: false }, () => broadcastRoutes())
+  process.on('exit', () => w.close())
+} catch {}
+
+async function handleRoutes(req, res) {
+  const url = (req.url ?? '/').split('?')[0]
+  if (url.startsWith('/api/routes/events')) {
+    res.writeHead(200, {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+    })
+    res.write('retry: 1500\n\n')
+    sseClients.add(res)
+    const ping = setInterval(() => {
+      try {
+        res.write(': ping\n\n')
+      } catch {
+        /* ignore */
+      }
+    }, 20000)
+    req.on('close', () => {
+      clearInterval(ping)
+      sseClients.delete(res)
+    })
+    return
+  }
+  if (req.method === 'GET') {
+    if (!existsSync(routesFile)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: '还没有数据文件', file: routesFile }))
+      return
+    }
+    res.setHeader('content-type', 'application/json')
+    res.end(readFileSync(routesFile, 'utf8'))
+    return
+  }
+  if (req.method === 'PUT' || req.method === 'POST') {
+    let data
+    try {
+      data = JSON.parse((await readBody(req)).toString('utf8') || '{}')
+    } catch {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'body 不是合法 JSON' }))
+      return
+    }
+    if (!data || !Array.isArray(data.boards)) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'boards 必须是数组' }))
+      return
+    }
+    mkdirSync(path.dirname(routesFile), { recursive: true })
+    const tmp = `${routesFile}.tmp-${process.pid}`
+    writeFileSync(tmp, JSON.stringify(data, null, 1), 'utf8')
+    renameSync(tmp, routesFile)
+    broadcastRoutes()
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ ok: true }))
+    return
+  }
+  res.statusCode = 405
+  res.end()
+}
+
 function serveStatic(req, res) {
   let base = currentDir
   if (existsSync(currentDir)) base = realpathSync(currentDir)
@@ -133,6 +217,10 @@ function serveStatic(req, res) {
 }
 
 const server = createServer(async (req, res) => {
+  if (req.url?.startsWith('/api/routes')) {
+    await handleRoutes(req, res)
+    return
+  }
   if (req.url?.startsWith('/api/chat')) {
     if (req.method !== 'POST') {
       res.statusCode = 405

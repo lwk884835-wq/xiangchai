@@ -34,7 +34,8 @@ npm run build                # 产出 dist/，可以直接扔到任意静态托�
 路线数据不依赖 key，纯手动也能记；只有「路线助手」需要模型。
 key 只存在 `.env.local`，由 Vite 中间件 `/api/chat` 转发，不会打进前端产物。
 
-数据全部存在浏览器 localStorage（`work-route-actions-v1`），没有服务端。
+数据默认存在浏览器 localStorage（`work-route-actions-v1`）；
+开发版/稳定版如果带本地数据 API，会同时落到项目里的 JSON 文件（见下面「MCP」一节），
 换设备就点右栏「导出数据」→ 新设备「导入数据」。
 
 ## 目录
@@ -60,6 +61,17 @@ src/
 
 **不能 / 没有**：简历、面试、岗位检索、投递、知识库、记忆归档、文件解析——
 这些是岗察（求职产品）的功能，这里全部去掉了。
+
+## MCP：让别的 Agent 也能读写你的路线
+
+项目里带了一个 MCP server（`mcp/`），任何支持 MCP 的客户端（DSH / Claude Desktop / Claude Code / Cursor…）
+都能直接读和改路线，网页会自动刷新——前端外观完全不变。
+
+- 数据文件：开发版 `data/routes.json`、稳定版 `data/routes-stable.json`（可用 `ROUTE_DATA_FILE` 覆盖）
+- 网页 ↔ 文件：开发版走 Vite 的 `/api/routes` + SSE；稳定版走 `scripts/stable-server.mjs` 的同名接口
+- 启动/配置/工具清单：见 `mcp/README.md`
+
+> 稳定版（5180）要等下一次 `npm run release:stable` 才会带上这个接口；没带接口时网页自动退回 localStorage，不影响使用。
 
 ## 没有的东西（故意不做）
 
