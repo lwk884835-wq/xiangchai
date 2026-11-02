@@ -120,9 +120,14 @@ export function NodeDrawer({
     }, 80)
   }
 
-  /** 「确定」：把当前编辑保存下来再关闭（以前只能点 X，隐式保存不直观） */
+  /**
+   * 「确定」：把当前编辑保存下来再关闭。
+   * 如果子任务输入框里还有没提交的内容，**先创建再关**——
+   * 否则用户打了子任务标题直接点「确定」，那条就被静默丢掉了（lwk 踩到过）。
+   */
   const commitEdits = () => {
     if (!node) return
+    if (childTitle.trim()) addChild()
     updateNode(node.id, {
       title: title.trim() || node.title,
       purpose,
