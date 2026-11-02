@@ -295,12 +295,16 @@
     box-shadow: var(--shadow-e3);
   }
   /* 可点卡片的统一手感：抬 1px + 阴影升级，不缩放（缩放会让文字发虚） */
+  /*
+    悬停反馈只做阴影/描边，不能改位置。
+    以前这里 ::hover 会 translateY(-1px)：鼠标停在卡片下边缘 1px 内时，
+    卡片抬起 → 指针离开卡片 → 落下 → 指针又进入 → 无限往复，看起来就是「抽动」。
+  */
   .lift {
-    transition: transform var(--dur-2) var(--ease-standard),
-      box-shadow var(--dur-2) var(--ease-standard), border-color var(--dur-2) var(--ease-standard);
+    transition: box-shadow var(--dur-2) var(--ease-standard),
+      border-color var(--dur-2) var(--ease-standard), background-color var(--dur-2) var(--ease-standard);
   }
   .lift:hover {
-    transform: translateY(-1px);
     box-shadow: var(--shadow-e2);
   }
   .anim-fade-up {
