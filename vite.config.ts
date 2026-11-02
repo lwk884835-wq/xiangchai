@@ -73,9 +73,18 @@ function routeDataApi(): Plugin {
     if (req.method === 'GET') {
       const body = read()
       if (!body) {
-        res.statusCode = 404
+        // 文件还不存在：返回空快照，让网页把本地数据推上来（比 404 干净，也避免首次加载竞态）
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ error: '还没有数据文件', file }))
+        res.end(
+          JSON.stringify({
+            version: 1,
+            updatedAt: 0,
+            boards: [],
+            focusItems: [],
+            collapsed: {},
+            activeBoardId: null,
+          }),
+        )
         return
       }
       res.setHeader('content-type', 'application/json')

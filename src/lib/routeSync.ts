@@ -110,11 +110,12 @@ export function startRouteSync(): void {
 
     useActions.subscribe(() => schedulePush())
 
-    if (server && Array.isArray(server.boards)) {
+    const localHasData = useActions.getState().boards.length > 0
+    if (server && Array.isArray(server.boards) && (server.boards.length > 0 || !localHasData)) {
       lastApplied = Number(server.updatedAt ?? 0)
       apply(server)
     } else {
-      // 第一次启用 API：把本地已有的数据写成文件
+      // 第一次启用 API（文件还不存在/是空的）：把本地已有的数据写成文件
       await push()
     }
 

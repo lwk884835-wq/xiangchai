@@ -159,9 +159,17 @@ async function handleRoutes(req, res) {
   }
   if (req.method === 'GET') {
     if (!existsSync(routesFile)) {
-      res.statusCode = 404
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ error: '还没有数据文件', file: routesFile }))
+      res.end(
+        JSON.stringify({
+          version: 1,
+          updatedAt: 0,
+          boards: [],
+          focusItems: [],
+          collapsed: {},
+          activeBoardId: null,
+        }),
+      )
       return
     }
     res.setHeader('content-type', 'application/json')
