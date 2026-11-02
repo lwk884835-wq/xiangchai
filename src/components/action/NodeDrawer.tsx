@@ -80,6 +80,8 @@ export function NodeDrawer({
   const [title, setTitle] = useState('')
   const [purpose, setPurpose] = useState('')
   const [detail, setDetail] = useState('')
+  /** 其他备注：纯记录用，不参与任务/依赖逻辑 */
+  const [notes, setNotes] = useState('')
   const [childTitle, setChildTitle] = useState('')
   const [childPurpose, setChildPurpose] = useState('')
   const [childDetail, setChildDetail] = useState('')
@@ -115,6 +117,7 @@ export function NodeDrawer({
       setTitle(node.title)
       setPurpose(node.purpose)
       setDetail(node.detail)
+      setNotes(node.notes ?? '')
       setChildTitle('')
       setChildPurpose('')
       setChildDetail('')
@@ -168,6 +171,7 @@ export function NodeDrawer({
       title: title.trim() || node.title,
       purpose,
       detail,
+      notes: notes.trim(),
     })
     onClose()
   }
@@ -477,6 +481,24 @@ export function NodeDrawer({
               onBlur={() => updateNode(node.id, { detail })}
               rows={5}
               placeholder="具体动作、交付物、验收标准"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  commitEdits()
+                }
+              }}
+              className="field mt-1 resize-none text-[12px] leading-[1.75]"
+            />
+          </div>
+
+          <div>
+            <label className="label">其他备注</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => updateNode(node.id, { notes: notes.trim() })}
+              rows={3}
+              placeholder="选填：想到什么记什么，不会被当成任务执行"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault()

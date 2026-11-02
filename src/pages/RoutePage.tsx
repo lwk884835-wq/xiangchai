@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Download, Plus, Undo2 } from 'lucide-react'
-import { actionProgress, planToMarkdown, useActions } from '@/store/actions'
+import { Plus, Undo2 } from 'lucide-react'
+import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -94,19 +94,6 @@ export function RoutePage({
     setOpenId(id)
   }
 
-  const exportMd = () => {
-    if (!board) return
-    const md = planToMarkdown(nodes, `${board.jobTitle}${board.label ? ' · ' + board.label : ''}`)
-    if (!md) return
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `路线-${board.jobTitle}.md`
-    a.click()
-    URL.revokeObjectURL(a.href)
-    toast('已导出 Markdown')
-  }
-
   const subtitle = [dateLine(), board?.jobTitle ?? '', board?.jobCity ?? '', board?.label ?? '']
     .filter(Boolean)
     .join(' · ')
@@ -153,10 +140,6 @@ export function RoutePage({
             <button onClick={addGoal} className="btn btn-line" title="自己加一个目标">
               <Plus size={12} />
               <span className="hidden lg:inline">加目标</span>
-            </button>
-            <button onClick={exportMd} className="btn btn-line" title="导出 Markdown">
-              <Download size={12} />
-              <span className="hidden lg:inline">导出 md</span>
             </button>
           </div>
         </header>

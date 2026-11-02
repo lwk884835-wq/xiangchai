@@ -873,38 +873,3 @@ export function actionNodeContext(
     children: childrenOf(nodes, node.id),
   }
 }
-
-/* ---------- 导出 Markdown ---------- */
-
-export function planToMarkdown(nodes: ActionNode[], title: string): string {
-  if (!nodes.length) return ''
-  const lines: string[] = [`# 行动路线 · ${title}`, '']
-
-  const walk = (node: ActionNode, depth: number) => {
-    const pad = '  '.repeat(depth - 1)
-    const mark = node.done ? 'x' : ' '
-    const tag = node.branch ? `〔${node.branch}〕` : ''
-    lines.push(`${pad}- [${mark}] ${tag}${node.title}`)
-    if (node.purpose) lines.push(`${pad}  - 目的：${node.purpose}`)
-    if (node.detail) lines.push(`${pad}  - 怎么做：${node.detail}`)
-    if (node.parallel) lines.push(`${pad}  - （可与同级并行）`)
-    if (node.deps.length) {
-      const depTitles = node.deps
-        .map((d) => nodes.find((n) => n.id === d)?.title ?? d)
-        .filter(Boolean)
-      if (depTitles.length) lines.push(`${pad}  - 前置：${depTitles.join('、')}`)
-    }
-    for (const child of childrenOf(nodes, node.id)) walk(child, depth + 1)
-  }
-
-  rootsOf(nodes).forEach((r) => {
-    lines.push(`## ${r.title}`)
-    if (r.purpose) lines.push(`> 目标：${r.purpose}`)
-    if (r.detail) lines.push(r.detail)
-    lines.push('')
-    walk(r, 1)
-    lines.push('')
-  })
-
-  return lines.join('\n')
-}

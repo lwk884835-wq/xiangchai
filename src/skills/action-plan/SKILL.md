@@ -67,6 +67,20 @@ version: 0.2
 
 `op=focus` 把某几条定到顶部「重点」。这是用户自己最近想推的事，**最多 3–5 条**，别塞满。
 
+## 常用的「改动作」工具
+
+- 删任务：`update_action_plan(op="delete", deleteMode="only"|"cascade")`
+  - only（默认）：删它和子任务，后面一步自动接回它的前一步
+  - cascade：这条和后面整串一起删
+- 独立成线：`update_action_plan(op="detach")` 把串行链上的任务拆出来单独一条线
+- 搬任务：`move_action_nodes`
+  - `position="child"`：变成目标的并行子任务（**整串**一起搬，含后面的步骤）
+  - `position="before"|"after"`：插到目标前/后，只搬这一张+它的子任务（调顺序/并入别的线）
+  - 传 `board` 可以跨路线搬（只支持 child）
+- 勾选完成：`update_action_done`（自动级联：勾父带子、勾后带前）
+- 路线本身：`manage_routes`（新建/改名/归档/恢复/删除/切换）
+- 顶部临时重点：`update_focus_items`（加/勾/取消/删）
+
 ## 输出
 
 - 说清动了哪几处（加了什么、改了什么、定了几条重点）

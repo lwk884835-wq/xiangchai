@@ -7,6 +7,8 @@ export interface ActionNode {
   purpose: string
   /** 具体怎么做（动作 / 交付物 / 怎么算完成） */
   detail: string
+  /** 其他备注：想到什么记什么，不会被当成任务执行 */
+  notes?: string
   /** 层级，从 1 开始，可以继续往下 */
   level: number
   /** 上级节点 id；null = 顶层目标 */

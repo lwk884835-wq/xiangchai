@@ -32,14 +32,20 @@ export const TOOLS: unknown[] = [
         properties: {
           op: {
             type: 'string',
-            enum: ['create', 'update', 'delete', 'focus', 'replace'],
+            enum: ['create', 'update', 'delete', 'focus', 'replace', 'detach'],
             description:
-              'create=新建节点；update=改节点/改父级；delete=删节点；focus=定到重点清单；replace=整条路线重排',
+              'create=新建节点；update=改节点/改父级；delete=删节点；focus=定到重点清单；replace=整条路线重排；detach=把串行链上的任务独立成一条线',
           },
           board: {
             type: 'string',
             description:
               '要改哪条路线（名字）。不填就是当前那条；填了但不存在会新建一条——换方向/另起一条路线时用它，不要复制旧路线',
+          },
+          deleteMode: {
+            type: 'string',
+            enum: ['only', 'cascade'],
+            description:
+              'op=delete 时怎么删：only=只删这条和子任务，后面一步自动接回它的前一步（默认）；cascade=这条和后面整串一起删',
           },
           nodes: {
             type: 'array',
@@ -73,6 +79,105 @@ export const TOOLS: unknown[] = [
               },
             },
           },
+        },
+        required: ['op'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_routes',
+      description:
+        '管理路线（计划）本身：列出 / 新建 / 改名 / 归档 / 恢复 / 删除 / 切换当前路线。要动的是「路线」而不是路线里的任务时用它。',
+      parameters: {
+        type: 'object',
+        properties: {
+          op: {
+            type: 'string',
+            enum: ['list', 'create', 'rename', 'archive', 'restore', 'delete', 'select'],
+            description: 'list=列出所有路线；create=新建；rename=改名；archive/restore=归档/恢复；delete=删除；select=切换当前路线',
+          },
+          board: {
+            type: 'string',
+            description: '目标路线：名字 / id / 标签（模糊匹配）。op=list 时可省略',
+          },
+          title: { type: 'string', description: 'create/rename 用的路线名' },
+          label: { type: 'string', description: '可选的区分标签，比如「主计划」' },
+          city: { type: 'string', description: '可选的一行补充说明' },
+        },
+        required: ['op'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'move_action_nodes',
+      description:
+        '移动任务：把一张卡搬到另一张卡下面（position=child，整串一起搬，含它后面的步骤）、插到同串某张卡前/后（position=before/after，只搬这一张+它的子任务，用来调顺序或并入别的分线）、或搬到另一条路线（传 board）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          moves: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: '要搬的任务：id 或标题' },
+                target: { type: 'string', description: '目标任务：id 或标题（position=child/before/after 时必填）' },
+                board: { type: 'string', description: '目标路线（名字 / id）。跨路线搬家时填' },
+                position: {
+                  type: 'string',
+                  enum: ['child', 'before', 'after'],
+                  description: 'child=变成目标的并行子任务；before/after=插在目标前/后（同路线内）',
+                },
+              },
+              required: ['id', 'position'],
+            },
+          },
+        },
+        required: ['moves'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_action_done',
+      description:
+        '勾选 / 取消任务的完成状态。勾选会按网页的级联规则来：勾父带子、勾后面带前面，取消则反向松开。',
+      parameters: {
+        type: 'object',
+        properties: {
+          nodes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: '任务 id 或标题' },
+                done: { type: 'boolean', description: 'true=勾上，false=取消勾选' },
+              },
+              required: ['id', 'done'],
+            },
+          },
+        },
+        required: ['nodes'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_focus_items',
+      description:
+        '编辑顶部「重点」里用户手动加的事项（不是路线卡片上的图钉）：加一条 / 勾掉 / 取消勾 / 删掉。',
+      parameters: {
+        type: 'object',
+        properties: {
+          op: { type: 'string', enum: ['list', 'add', 'toggle', 'remove'] },
+          id: { type: 'string', description: 'toggle / remove 用：事项 id 或文本' },
+          text: { type: 'string', description: 'add 用：要加的事项内容' },
         },
         required: ['op'],
       },
@@ -366,14 +471,34 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
     }
 
     if (op === 'delete') {
+      const mode = String(args.deleteMode ?? 'only') === 'cascade' ? 'cascade' : 'only'
       let n = 0
       for (const item of items) {
         const target = findNode(String(item.id ?? item.title ?? ''))
         if (!target) continue
-        st.removeNode(target.id, boardId)
+        st.deleteNode(target.id, mode, boardId)
         n++
       }
-      return { label: '改路线', result: JSON.stringify({ ok: true, op, deleted: n }), note: `删了 ${n} 条` }
+      return {
+        label: '改路线',
+        result: JSON.stringify({ ok: true, op, deleteMode: mode, deleted: n, graph: graphNow() }),
+        note: mode === 'cascade' ? `连后面整串删了 ${n} 条` : `删了 ${n} 条（后面一步已接回前一步）`,
+      }
+    }
+
+    if (op === 'detach') {
+      let n = 0
+      for (const item of items) {
+        const target = findNode(String(item.id ?? item.title ?? ''))
+        if (!target) continue
+        st.detachNode(target.id, boardId)
+        n++
+      }
+      return {
+        label: '改路线',
+        result: JSON.stringify({ ok: true, op, detached: n, graph: graphNow() }),
+        note: `把 ${n} 条独立成线`,
+      }
     }
 
     // update
@@ -422,6 +547,221 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
     }
   }
 
+  if (name === 'manage_routes') {
+    const op = String(args.op ?? 'list')
+    const st = useActions.getState()
+    const key = String(args.board ?? '').trim()
+    const board = key
+      ? (st.boards.find((b) => b.id === key) ??
+        st.boards.find((b) => b.jobTitle === key || b.label === key) ??
+        st.boards.find((b) => b.jobTitle.includes(key) || b.label.includes(key)) ??
+        null)
+      : null
+    const list = () => {
+      const cur = useActions.getState()
+      return cur.boards.map((b) => ({
+        title: b.jobTitle,
+        label: b.label,
+        city: b.jobCity,
+        nodes: b.nodes.length,
+        archived: b.archived,
+        active: b.id === cur.activeBoardId,
+      }))
+    }
+    if (op === 'list') {
+      return {
+        label: '管理路线',
+        result: JSON.stringify({ ok: true, op, boards: list() }),
+        note: `${list().length} 条路线`,
+      }
+    }
+    if (op === 'create') {
+      const title = String(args.title ?? '').trim() || '新路线'
+      st.addBoard({
+        jobTitle: title,
+        jobCity: String(args.city ?? ''),
+        label: String(args.label ?? ''),
+      })
+      return {
+        label: '管理路线',
+        result: JSON.stringify({ ok: true, op, created: title, boards: list() }),
+        note: `新建并切到「${title}」`,
+      }
+    }
+    if (!board) {
+      return {
+        label: '管理路线',
+        result: JSON.stringify({ ok: false, reason: '没找到这条路线', boards: list() }),
+        note: '没找到路线',
+      }
+    }
+    if (op === 'rename') {
+      const patch: Record<string, string> = {}
+      if (args.title != null) patch.jobTitle = String(args.title)
+      if (args.label != null) patch.label = String(args.label)
+      if (args.city != null) patch.jobCity = String(args.city)
+      st.renameBoard(board.id, patch)
+    } else if (op === 'archive') {
+      st.archiveBoard(board.id)
+    } else if (op === 'restore') {
+      st.restoreBoard(board.id)
+    } else if (op === 'delete') {
+      st.removeBoard(board.id)
+    } else if (op === 'select') {
+      st.setActiveBoard(board.id)
+    }
+    return {
+      label: '管理路线',
+      result: JSON.stringify({ ok: true, op, board: board.jobTitle, boards: list() }),
+      note: `${op}「${board.jobTitle}」`,
+    }
+  }
+
+  if (name === 'move_action_nodes') {
+    const moves = (Array.isArray(args.moves) ? args.moves : []) as Record<string, unknown>[]
+    let moved = 0
+    const failed: string[] = []
+    for (const m of moves) {
+      const id = String(m.id ?? '').trim()
+      const position = String(m.position ?? 'child')
+      const boardKey = String(m.board ?? '').trim()
+      const targetKey = String(m.target ?? '').trim()
+      const cur = useActions.getState()
+      // 允许用标题定位要搬的卡（和建/改工具一样宽松）
+      let fromBoard: (typeof cur.boards)[number] | null = null
+      let node: (typeof cur.boards)[number]['nodes'][number] | null = null
+      for (const bd of cur.boards) {
+        const hit =
+          bd.nodes.find((n) => n.id === id) ?? bd.nodes.find((n) => n.title.includes(id))
+        if (hit) {
+          fromBoard = bd
+          node = hit
+          break
+        }
+      }
+      if (!fromBoard || !node) {
+        failed.push(`${id}（没找到）`)
+        continue
+      }
+      const findNodeIn = (board: ActionBoard) =>
+        board.nodes.find((n) => n.id === targetKey) ??
+        board.nodes.find((n) => n.title.includes(targetKey)) ??
+        null
+
+      if (boardKey) {
+        const toBoard =
+          cur.boards.find((b) => b.id === boardKey) ??
+          cur.boards.find((b) => b.jobTitle === boardKey || b.label === boardKey) ??
+          cur.boards.find((b) => b.jobTitle.includes(boardKey) || b.label.includes(boardKey)) ??
+          null
+        if (!toBoard) {
+          failed.push(`${id}（目标路线没找到）`)
+          continue
+        }
+        if (position === 'child') {
+          const target = targetKey ? findNodeIn(toBoard) : null
+          cur.moveSubtreeToBoard(node.id, toBoard.id, target?.id)
+          moved++
+        } else {
+          failed.push(`${id}（跨路线只支持 position=child）`)
+        }
+        continue
+      }
+
+      if (!targetKey) {
+        failed.push(`${id}（缺 target）`)
+        continue
+      }
+      const target = findNodeIn(fromBoard)
+      if (!target) {
+        failed.push(`${id}（目标没找到）`)
+        continue
+      }
+      if (position === 'child') cur.moveSubtree(node.id, target.id)
+      else if (position === 'before' || position === 'after') {
+        cur.reorderChild(node.id, target.id, position)
+      } else {
+        failed.push(`${id}（position 不认识）`)
+        continue
+      }
+      moved++
+    }
+    const st = useActions.getState()
+    const active = st.boards.find((b) => b.id === st.activeBoardId) ?? st.boards[0]
+    return {
+      label: '搬任务',
+      result: JSON.stringify({
+        ok: true,
+        moved,
+        failed,
+        board: active?.jobTitle,
+        graph: active ? actionGraphText(active.nodes, 5) : '',
+      }),
+      note: `搬了 ${moved} 次${failed.length ? `；${failed.length} 次没成` : ''}`,
+    }
+  }
+
+  if (name === 'update_action_done') {
+    const items = (Array.isArray(args.nodes) ? args.nodes : []) as Record<string, unknown>[]
+    const st = useActions.getState()
+    const active = st.boards.find((b) => b.id === st.activeBoardId) ?? st.boards[0]
+    let changed = 0
+    const failed: string[] = []
+    for (const item of items) {
+      const key = String(item.id ?? '').trim()
+      const desired = item.done === true
+      const target =
+        active?.nodes.find((n) => n.id === key) ??
+        active?.nodes.find((n) => n.title.includes(key)) ??
+        null
+      if (!target) {
+        failed.push(key)
+        continue
+      }
+      if (target.done !== desired) {
+        useActions.getState().toggleNode(target.id)
+        changed++
+      }
+    }
+    return {
+      label: '勾选任务',
+      result: JSON.stringify({ ok: true, changed, failed }),
+      note: `改了 ${changed} 条完成状态`,
+    }
+  }
+
+  if (name === 'update_focus_items') {
+    const op = String(args.op ?? 'list')
+    const st = useActions.getState()
+    const items = () => useActions.getState().focusItems
+    const key = String(args.id ?? '').trim()
+    const target =
+      key
+        ? (st.focusItems.find((f) => f.id === key) ?? st.focusItems.find((f) => f.text.includes(key)) ?? null)
+        : null
+    if (op === 'add') {
+      const text = String(args.text ?? '').trim()
+      if (!text) {
+        return { label: '改重点清单', result: JSON.stringify({ ok: false, reason: '缺少 text' }), note: '没加' }
+      }
+      st.addFocusItem(text)
+    } else if (op === 'toggle' && target) {
+      st.toggleFocusItem(target.id)
+    } else if (op === 'remove' && target) {
+      st.removeFocusItem(target.id)
+    }
+    return {
+      label: '改重点清单',
+      result: JSON.stringify({
+        ok: true,
+        op,
+        items: items().map((f) => ({ id: f.id, text: f.text, done: f.done })),
+      }),
+      note:
+        op === 'add' ? '加了一条临时事项' : op === 'toggle' ? '切换了一条临时事项' : op === 'remove' ? '删了一条临时事项' : `${items().length} 条临时事项`,
+    }
+  }
+
   return { label: '未知工具', result: JSON.stringify({ ok: false, reason: '没有这个工具' }), note: '没有这个工具' }
 }
 
@@ -445,7 +785,11 @@ ${board ? `- 路线全貌（缩进即层级）：\n${graph || '（空）'}` : ''
 
 ## 你只做一件事：把用户想做的事拆成路线，或者改现在的路线
 - 想看结构/找某个任务 → read_action_graph
-- 建/改/删/定重点 → update_action_plan
+- 建 / 改内容 / 改层级 / 删（带删法） / 定重点 / 独立成线 → update_action_plan
+- 路线本身：新建 / 改名 / 归档 / 恢复 / 删除 / 切换 → manage_routes
+- 搬任务：变成某卡的并行子任务、调顺序、并入别的分线、跨路线搬家 → move_action_nodes
+- 勾选 / 取消完成 → update_action_done（自动按网页的级联规则）
+- 顶部「重点」里的临时事项 → update_focus_items
 - 需要更细的规则 → load_skill("action-plan")
 - **这里没有求职相关的东西**：没有简历、面试、岗位检索，不要提这些，也不要承诺去查外部信息。
 
@@ -454,6 +798,8 @@ ${board ? `- 路线全貌（缩进即层级）：\n${graph || '（空）'}` : ''
 - 任务名写成能执行的动作（动词开头、有交付物），不要口号/提醒
 - 用户贴缩进大纲时，缩进就是层级，照建，别拍平
 - 只改层级/挪位置用 update 传 parentId，别整树 replace；换方向用 board 新建一条，别复制旧路线
+- 删任务默认用 deleteMode="only"（后面的步骤会自动接回前一步）；只有用户明确说「后面也不要了」才用 cascade
+- 搬卡片：position=child 会连它后面的整串一起搬；只想挪这一个用 before/after
 - 不要一次铺太满：默认 2–3 层，细节留给他。
 - 不编造他没说过的事；不知道就问一句。
 
