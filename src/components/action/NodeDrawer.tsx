@@ -30,8 +30,8 @@ export function NodeDrawer({
   const collapsed = useActions((s) => s.collapsed[activeBoardId ?? ''] ?? EMPTY_IDS)
   const toggleCollapse = useActions((s) => s.toggleCollapse)
   const addNode = useActions((s) => s.addNode)
-  const removeNode = useActions((s) => s.removeNode)
   const detachNode = useActions((s) => s.detachNode)
+  const deleteNode = useActions((s) => s.deleteNode)
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const moveNode = useActions((s) => s.moveNode)
@@ -90,6 +90,8 @@ export function NodeDrawer({
   const [menu, setMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null)
   /** 抽屉里点选中的子任务：串行新增会接在它的后面（相当于「延长这一串」） */
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
+  /** 底部「删掉这个」的两种删法弹层 */
+  const [delMenu, setDelMenu] = useState(false)
 
   // 默认选中最上面的子任务；选中的被删/换父节点时也回落到最上面那条。
   // 这样「串行」永远有一个明确的落点，不用先手动点一下。
@@ -295,6 +297,41 @@ export function NodeDrawer({
                 <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
                   {lone ? '它已经不在串行链上' : '不再串在前面的任务后面，单独从父任务引一条线'}
                 </p>
+                <div className="my-1 h-px bg-line/70" />
+                <button
+                  onClick={() => {
+                    if (!target) return
+                    deleteNode(target.id, 'only')
+                    toast(`已删掉「${target.title}」，后面一步接回前一步`)
+                    setMenu(null)
+                  }}
+                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 size={12} className="mt-[3px] shrink-0" />
+                  <span>
+                    删掉这条（子任务一起删）
+                    <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                      后面那一步会自动接回它的前一步
+                    </span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (!target) return
+                    deleteNode(target.id, 'cascade')
+                    toast(`已删掉「${target.title}」和后面整串`)
+                    setMenu(null)
+                  }}
+                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 size={12} className="mt-[3px] shrink-0" />
+                  <span>
+                    删掉这条和后面整串
+                    <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                      这一条后面的步骤不会保留
+                    </span>
+                  </span>
+                </button>
               </div>
             </>
           )
@@ -510,7 +547,8 @@ export function NodeDrawer({
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          removeNode(k.id)
+                          deleteNode(k.id, 'only')
+                          toast(`已删掉「${k.title}」，后面一步自动接回前一步`)
                         }}
                         className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-danger-soft hover:text-danger"
                       >
@@ -604,7 +642,48 @@ export function NodeDrawer({
           </div>
         </div>
 
-        <footer className="flex shrink-0 items-center gap-1.5 border-t border-line px-4 py-2.5">
+        <footer className="relative flex shrink-0 items-center gap-1.5 border-t border-line px-4 py-2.5">
+          {delMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setDelMenu(false)} />
+              <div className="absolute right-2 bottom-[50px] z-20 w-[286px] overflow-hidden rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3 anim-pop">
+                <button
+                  onClick={() => {
+                    setDelMenu(false)
+                    deleteNode(node.id, 'only')
+                    toast('已删掉，后面一步接回前一步')
+                    onClose()
+                  }}
+                  className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                >
+                  <Trash2 size={12} className="mt-[3px] shrink-0" />
+                  <span>
+                    只删这条（子任务一起删）
+                    <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                      后面那一步会自动接回它的前一步
+                    </span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setDelMenu(false)
+                    deleteNode(node.id, 'cascade')
+                    toast('已连后面整串一起删掉')
+                    onClose()
+                  }}
+                  className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 size={12} className="mt-[3px] shrink-0" />
+                  <span>
+                    删掉它和后面整串
+                    <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                      这条及后面所有步骤、子任务一起删
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
           <button
             onClick={() => moveNode(node.id, -1)}
             disabled={sibIdx <= 0}
@@ -622,11 +701,11 @@ export function NodeDrawer({
             <ArrowDown size={12} />
           </button>
           <button
-            onClick={() => {
-              removeNode(node.id)
-              onClose()
-            }}
-            className="ml-auto flex h-[24px] items-center gap-1 rounded-md px-2 text-[11px] text-muted transition-colors hover:bg-danger-soft hover:text-danger"
+            onClick={() => setDelMenu((v) => !v)}
+            className={cn(
+              'ml-auto flex h-[24px] items-center gap-1 rounded-md px-2 text-[11px] transition-colors',
+              delMenu ? 'bg-danger-soft text-danger' : 'text-muted hover:bg-danger-soft hover:text-danger',
+            )}
           >
             <Trash2 size={12} />
             删掉这个

@@ -45,6 +45,14 @@ export const NodeCard = memo(function NodeCard({
   collapsed = false,
   onToggleCollapse,
   progress = 'todo',
+  draggable = false,
+  dragging = false,
+  dropTarget = false,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: {
   node: ActionNode
   onOpen: (id: string) => void
@@ -56,11 +64,25 @@ export const NodeCard = memo(function NodeCard({
   onToggleCollapse?: () => void
   /** 推进状态：已完成 / 进行中 / 还没开始 —— 靠卡片底色区分 */
   progress?: 'done' | 'doing' | 'todo'
+  draggable?: boolean
+  dragging?: boolean
+  dropTarget?: boolean
+  onDragStart?: (id: string, e: React.DragEvent) => void
+  onDragEnd?: () => void
+  onDragOver?: (id: string, e: React.DragEvent) => void
+  onDragLeave?: (id: string, e: React.DragEvent) => void
+  onDrop?: (id: string, e: React.DragEvent) => void
 }) {
   const st = styleOf(node.level)
   return (
     <div
       data-node-id={node.id}
+      draggable={draggable}
+      onDragStart={(e) => onDragStart?.(node.id, e)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => onDragOver?.(node.id, e)}
+      onDragLeave={(e) => onDragLeave?.(node.id, e)}
+      onDrop={(e) => onDrop?.(node.id, e)}
       className={cn(
         'lift group relative shrink-0 rounded-[16px] border',
         st.wrap,
@@ -71,6 +93,9 @@ export const NodeCard = memo(function NodeCard({
             ? 'border-accent-line bg-accent-soft/60 shadow-[0_1px_2px_rgba(23,22,26,.04)]'
             : 'border-transparent bg-surface shadow-e1 hover:border-line/70',
         node.pinned && 'ring-1 ring-accent-line/70',
+        draggable && 'cursor-grab active:cursor-grabbing',
+        dragging && 'opacity-40',
+        dropTarget && 'ring-2 ring-accent ring-offset-1 ring-offset-surface',
       )}
     >
       <div
@@ -84,7 +109,8 @@ export const NodeCard = memo(function NodeCard({
           }
         }}
         className={cn(
-          'block w-full cursor-pointer text-left',
+          'block w-full text-left',
+          draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
           // 给右下角的「N 个子任务」按钮留一行，不然它压在描述最后一行上
           childCount > 0 && 'pb-[11px]',
         )}

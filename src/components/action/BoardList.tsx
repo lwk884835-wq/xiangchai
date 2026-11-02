@@ -27,12 +27,15 @@ export function BoardList() {
   const removeBoard = useActions((s) => s.removeBoard)
   const archiveBoard = useActions((s) => s.archiveBoard)
   const restoreBoard = useActions((s) => s.restoreBoard)
+  const moveSubtreeToBoard = useActions((s) => s.moveSubtreeToBoard)
   const renameBoard = useActions((s) => s.renameBoard)
   const exportData = useActions((s) => s.exportData)
   const importData = useActions((s) => s.importData)
   const toast = useUi((s) => s.showToast)
 
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  /** 拖拽悬停在哪条路线上（跨路线搬家用） */
+  const [dropBoardId, setDropBoardId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -74,9 +77,27 @@ export function BoardList() {
           return (
             <div
               key={b.id}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('application/x-route-node')) return
+                if (b.id === activeId) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDropBoardId(b.id)
+              }}
+              onDragLeave={() => setDropBoardId((cur) => (cur === b.id ? null : cur))}
+              onDrop={(e) => {
+                if (b.id === activeId) return
+                e.preventDefault()
+                const id = e.dataTransfer.getData('application/x-route-node')
+                setDropBoardId(null)
+                if (!id) return
+                moveSubtreeToBoard(id, b.id)
+                toast(`已搬到「${b.jobTitle}」`)
+              }}
               className={cn(
                 'group relative rounded-[10px] border px-3 py-2.5 transition-all duration-150',
                 active ? 'border-line bg-surface shadow-e1' : 'border-transparent hover:bg-surface-3/70',
+                dropBoardId === b.id && 'border-accent-line bg-accent-soft/60 ring-1 ring-accent-line',
               )}
             >
               {active && (

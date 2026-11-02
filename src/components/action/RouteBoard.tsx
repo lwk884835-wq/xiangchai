@@ -1,7 +1,8 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, ListChecks, Plus } from 'lucide-react'
 import type { ActionNode } from '@/types'
-import { childrenOf } from '@/store/actions'
+import { childrenOf, useActions } from '@/store/actions'
+import { useUi } from '@/store/ui'
 import { NodeCard } from './NodeCard'
 import { EmptyState } from '@/components/EmptyState'
 
@@ -91,6 +92,17 @@ function elbow(x1: number, y1: number, x2: number, y2: number, outX: number): Se
 }
 
 
+/** 拖拽回调：卡片和它下面的所有 Column 共用一份 */
+interface Dnd {
+  dragId: string | null
+  dropId: string | null
+  onDragStart: (id: string, e: React.DragEvent) => void
+  onDragEnd: () => void
+  onDragOver: (id: string, e: React.DragEvent) => void
+  onDragLeave: (id: string, e: React.DragEvent) => void
+  onDrop: (id: string, e: React.DragEvent) => void
+}
+
 function Column({
   node,
   nodes,
@@ -99,6 +111,7 @@ function Column({
   onToggle,
   onPin,
   onToggleCollapse,
+  dnd,
 }: {
   node: ActionNode
   nodes: ActionNode[]
@@ -107,6 +120,7 @@ function Column({
   onToggle: (id: string) => void
   onPin: (id: string, pinned: boolean) => void
   onToggleCollapse: (id: string) => void
+  dnd: Dnd
 }) {
   const kids = useMemo(() => childrenOf(nodes, node.id), [nodes, node.id])
   const isCollapsed = collapsed.includes(node.id)
@@ -140,6 +154,14 @@ function Column({
         collapsed={isCollapsed}
         progress={progress}
         onToggleCollapse={() => onToggleCollapse(node.id)}
+        draggable
+        dragging={dnd.dragId === node.id}
+        dropTarget={dnd.dropId === node.id}
+        onDragStart={dnd.onDragStart}
+        onDragEnd={dnd.onDragEnd}
+        onDragOver={dnd.onDragOver}
+        onDragLeave={dnd.onDragLeave}
+        onDrop={dnd.onDrop}
       />
       {visible.length > 0 && (
         // 中屏把层间距收一收，同样的窗口能多看到一层；超宽屏再放开
@@ -173,6 +195,7 @@ function Column({
                       onToggle={onToggle}
                       onPin={onPin}
                       onToggleCollapse={onToggleCollapse}
+                      dnd={dnd}
                     />
                   </Fragment>
                 ))}
@@ -203,6 +226,60 @@ export const RouteBoard = memo(function RouteBoard({
   /** 空路线时给一个「加第一个目标」的入口 */
   onAddGoal?: () => void
 }) {
+  const moveSubtree = useActions((s) => s.moveSubtree)
+  const toast = useUi((s) => s.showToast)
+  /** 拖拽中的节点 id：dragover 用 ref，避免 state 更新延迟到下一帧才生效 */
+  const dragIdRef = useRef<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dropId, setDropId] = useState<string | null>(null)
+
+  const clearDrag = () => {
+    dragIdRef.current = null
+    setDragId(null)
+    setDropId(null)
+  }
+
+  const dnd: Dnd = {
+    dragId,
+    dropId,
+    onDragStart: (id, e) => {
+      dragIdRef.current = id
+      setDragId(id)
+      e.dataTransfer.setData('application/x-route-node', id)
+      e.dataTransfer.effectAllowed = 'move'
+    },
+    onDragEnd: clearDrag,
+    onDragOver: (id, e) => {
+      if (!dragIdRef.current || dragIdRef.current === id) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      setDropId(id)
+    },
+    onDragLeave: (id) => {
+      setDropId((cur) => (cur === id ? null : cur))
+    },
+    onDrop: (id, e) => {
+      e.preventDefault()
+      const from = e.dataTransfer.getData('application/x-route-node') || dragIdRef.current
+      clearDrag()
+      if (!from || from === id) return
+      // 不能拖到自己的子任务里（会成环）
+      const isDescendant = (() => {
+        let cur = nodes.find((n) => n.id === id)
+        while (cur?.parentId) {
+          if (cur.parentId === from) return true
+          cur = nodes.find((n) => n.id === cur!.parentId)
+        }
+        return false
+      })()
+      if (isDescendant) {
+        toast('不能拖到它自己的子任务下面')
+        return
+      }
+      moveSubtree(from, id)
+      toast('已把整串接到这张卡片后面')
+    },
+  }
   const roots = useMemo(() => nodes.filter((n) => !n.parentId), [nodes])
   const wrapRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -446,6 +523,7 @@ export const RouteBoard = memo(function RouteBoard({
                   onToggle={onToggle}
                   onPin={onPin}
                   onToggleCollapse={onToggleCollapse}
+                  dnd={dnd}
                 />
               </Fragment>
             ))}

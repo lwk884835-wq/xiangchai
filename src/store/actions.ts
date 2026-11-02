@@ -56,6 +56,19 @@ interface ActionState {
    * 如果后面还串着任务，那个任务的前置改接到它的上一步，链不断。
    */
   detachNode: (id: string, boardId?: string) => void
+  /**
+   * 删节点：
+   * - mode='only'：删它 + 它的子树；同一串里后面那一步的前置跨过它，接到它的前一步
+   * - mode='cascade'：删它 + 子树 + 同一串里后面所有步骤及它们的子树
+   */
+  deleteNode: (id: string, mode: 'only' | 'cascade', boardId?: string) => void
+  /**
+   * 拖拽搬动：搬「它 + 子树 + 同一串里后面的步骤（含子树）」。
+   * 放到目标卡片上 → 成为目标的子任务，接在目标现有子任务后面。
+   */
+  moveSubtree: (id: string, targetId: string, boardId?: string) => void
+  /** 拖到路线列表：整串搬到另一条路线，挂到那条路线最后一个目标下面 */
+  moveSubtreeToBoard: (id: string, targetBoardId: string) => void
   toggleCollapse: (id: string, boardId?: string) => void
 
   addFocusItem: (text: string) => void
@@ -369,6 +382,161 @@ export const useActions = create<ActionState>()(
                 return { ...n, deps: prev ? [prev.id] : [] }
               }
               return n
+            }),
+          }))
+        },
+
+        deleteNode: (id, mode, boardId) => {
+          const board = boardOf(boardId)
+          const node = board?.nodes.find((n) => n.id === id)
+          if (!board || !node) return
+
+          const nodes = board.nodes
+          // 同一串（同父级 + 同 branch）里，按数组顺序排在它后面的兄弟
+          const mates = nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === id)
+          const follow = at >= 0 ? mates.slice(at + 1) : []
+
+          const collect = (rootId: string, into: Set<string>) => {
+            if (into.has(rootId)) return
+            into.add(rootId)
+            for (const n of nodes) if (n.parentId === rootId) collect(n.id, into)
+          }
+
+          const drop = new Set<string>()
+          collect(id, drop)
+          if (mode === 'cascade') {
+            for (const f of follow) collect(f.id, drop)
+          }
+
+          // 删掉后，链上「被删节点的前置」用它的原前置补上
+          const prevDeps = node.deps ?? []
+          const next = mode === 'only' ? (follow[0] ?? null) : null
+
+          patchBoard(boardId, (b) => {
+            const kept = b.nodes.filter((n) => !drop.has(n.id))
+            const fixed = kept.map((n) => {
+              if (!n.deps?.length) return n
+              // 被删掉的依赖：只删这一条的情况接到被删节点的前置，级联情况直接去掉
+              let deps = n.deps.flatMap((d) => {
+                if (d === id) return next && n.id === next.id ? prevDeps : []
+                if (drop.has(d)) return []
+                return [d]
+              })
+              // 去重
+              deps = [...new Set(deps)]
+              const same = deps.length === n.deps.length && deps.every((d, i) => d === n.deps[i])
+              return same ? n : { ...n, deps }
+            })
+            return { ...b, nodes: fixed }
+          })
+        },
+
+        moveSubtree: (id, targetId, boardId) => {
+          const board = boardOf(boardId)
+          if (!board || id === targetId) return
+          const nodes = board.nodes
+          const node = nodes.find((n) => n.id === id)
+          const target = nodes.find((n) => n.id === targetId)
+          if (!node || !target) return
+
+          // 搬动集合 = 自己 + 子树 + 同一串后面的步骤（各自带子树）
+          const mates = nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === id)
+          const follow = at >= 0 ? mates.slice(at + 1) : []
+          const chain = [node, ...follow]
+          const moving = new Set<string>()
+          const collect = (rootId: string) => {
+            if (moving.has(rootId)) return
+            moving.add(rootId)
+            for (const n of nodes) if (n.parentId === rootId) collect(n.id)
+          }
+          for (const c of chain) collect(c.id)
+          // 不能拖到自己的子树里（会成环）
+          if (moving.has(target.id)) return
+
+          // 接在目标现有子任务的最后一条后面；没有子任务就作为第一个子任务
+          const kids = nodes.filter((n) => n.parentId === target.id && !moving.has(n.id))
+          const last = kids[kids.length - 1] ?? null
+          const destBranch = last ? last.branch || '' : target.branch || ''
+          const destDeps = last ? [last.id] : []
+          const delta = target.level + 1 - node.level
+
+          // 先按原顺序挑出要移动的节点，再整体挪到数组末尾（保证排在目标子任务之后）
+          const movingNodes = nodes.filter((n) => moving.has(n.id))
+          const kept = nodes.filter((n) => !moving.has(n.id))
+          const chainIds = new Set(chain.map((c) => c.id))
+          const updated = movingNodes.map((n) => {
+            if (chainIds.has(n.id)) {
+              return {
+                ...n,
+                level: Math.max(1, n.level + delta),
+                parentId: target.id,
+                branch: destBranch,
+                parallel: false,
+                deps: n.id === id ? destDeps : n.deps,
+              }
+            }
+            return { ...n, level: Math.max(1, n.level + delta) }
+          })
+          patchBoard(boardId, (b) => ({ ...b, nodes: [...kept, ...updated] }))
+        },
+
+        moveSubtreeToBoard: (id, targetBoardId) => {
+          const s = get()
+          const from = s.boards.find((b) => b.nodes.some((n) => n.id === id))
+          const to = s.boards.find((b) => b.id === targetBoardId)
+          if (!from || !to || from.id === to.id) return
+          const node = from.nodes.find((n) => n.id === id)
+          if (!node) return
+
+          const mates = from.nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === id)
+          const follow = at >= 0 ? mates.slice(at + 1) : []
+          const chain = [node, ...follow]
+          const moving = new Set<string>()
+          const collect = (rootId: string) => {
+            if (moving.has(rootId)) return
+            moving.add(rootId)
+            for (const n of from.nodes) if (n.parentId === rootId) collect(n.id)
+          }
+          for (const c of chain) collect(c.id)
+
+          const movingNodes = from.nodes.filter((n) => moving.has(n.id))
+          const root = [...to.nodes].reverse().find((n) => n.parentId === null) ?? null
+          const anchorKids = root ? to.nodes.filter((n) => n.parentId === root.id) : []
+          const lastKid = anchorKids[anchorKids.length - 1] ?? null
+          const destBranch = root ? (lastKid ? lastKid.branch || '' : root.branch || '') : ''
+          const destDeps = root && lastKid ? [lastKid.id] : []
+          const baseLevel = root ? (lastKid ? lastKid.level : root.level + 1) : 1
+          const delta = baseLevel - node.level
+          const chainIds = new Set(chain.map((c) => c.id))
+
+          const updated = movingNodes.map((n) => {
+            if (chainIds.has(n.id)) {
+              return {
+                ...n,
+                level: Math.max(1, n.level + delta),
+                parentId: root ? root.id : null,
+                branch: destBranch,
+                parallel: false,
+                deps: n.id === id ? destDeps : n.deps,
+              }
+            }
+            return { ...n, level: Math.max(1, n.level + delta) }
+          })
+
+          set((s2) => ({
+            boards: s2.boards.map((b) => {
+              if (b.id === from.id) return { ...b, nodes: b.nodes.filter((n) => !moving.has(n.id)) }
+              if (b.id === to.id) return { ...b, nodes: [...b.nodes, ...updated] }
+              return b
             }),
           }))
         },
