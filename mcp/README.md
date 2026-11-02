@@ -3,9 +3,14 @@
 把「行动路线」暴露成一个 MCP server，让支持 MCP 的客户端（DSH / Claude Desktop / Claude Code / Cursor / VS Code…）
 直接读和改你的路线。
 
-**数据只有一份**：`../data/routes.json`（可用环境变量 `ROUTE_DATA_FILE` 指向别处）。
-网页（开发版 5174）通过 Vite 的 `/api/routes` 读写同一个文件，SSE 实时同步——
-外部 Agent 改完，网页会自动刷新；网页里改的，文件也会跟着更新。
+**数据文件优先级**：
+
+1. 环境变量 `ROUTE_DATA_FILE`
+2. `../data/routes-stable.json` —— **稳定版（5180，lwk 日常用）的真实数据**（刷新一次稳定版后自动生成）
+3. `../data/routes.json` —— 开发版（5174）的数据
+
+网页通过本地数据 API（开发版 Vite 中间件 / 稳定版 stable-server）读写同一份文件，
+SSE 实时同步——外部 Agent 改完，网页会自动刷新；网页里改的，文件也会跟着更新。
 
 ## 启动
 
@@ -21,6 +26,8 @@ node server.mjs    # stdio，普通客户端会自动拉起，一般不用手动
 node call.mjs list_routes
 node call.mjs read_route '{"board":"我的路线"}'
 node call.mjs apply_plan_ops '{"op":"create","nodes":[{"title":"目标","level":1}]}'
+# 指定数据文件（比如调试开发版而不是稳定版）
+ROUTE_DATA_FILE=../data/routes.json node call.mjs list_routes
 ```
 
 ## 客户端配置示例

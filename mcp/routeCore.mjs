@@ -7,9 +7,19 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
+/**
+ * 数据文件优先级：
+ *   1. ROUTE_DATA_FILE 环境变量（客户端配置里可指定）
+ *   2. data/routes-stable.json —— 稳定版（5180）的真实数据（lwk 刷新过稳定版后会自动生成）
+ *   3. data/routes.json —— 开发版（5174）的数据
+ */
+const stableFile = resolve(import.meta.dirname, '..', 'data', 'routes-stable.json')
+const devFile = resolve(import.meta.dirname, '..', 'data', 'routes.json')
 export const dataFile = process.env.ROUTE_DATA_FILE
   ? resolve(process.env.ROUTE_DATA_FILE)
-  : resolve(import.meta.dirname, '..', 'data', 'routes.json')
+  : existsSync(stableFile)
+    ? stableFile
+    : devFile
 
 const uid = () => `an-${Math.random().toString(36).slice(2, 10)}`
 const bid = () => `bd-${Math.random().toString(36).slice(2, 10)}`

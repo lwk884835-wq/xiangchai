@@ -49,3 +49,30 @@ releases/                  构建产物（gitignore，不要提交）
 src/store/actions.ts       路线数据（persist 到 localStorage）——改结构要迁移
 src/lib/tools.ts           内置「路线助手」的工具（read/update/load_skill）
 ```
+
+
+## 自动更新 5180（26.11.2 起，所有会话 / Agent 都照这个做）
+
+lwk 的口径：**以后 5180 由 Agent 改完自动更新，不用再等他确认。**
+
+流程（每次改完、验证通过之后）：
+
+1. `git add` 只加自己改的文件 → `git commit`
+2. 跑 `npm run release:auto`
+
+`release:auto` 会：备份 `data/routes-stable.json` → 从 **git HEAD** 构建发布（不读工作区）→
+`launchctl` 重启稳定版服务（让 stable-server 的新代码生效）→ 轮询 5180 页面和 `/api/routes` 做健康检查。
+
+- 发布只认提交：工作区没提交的改动不会进稳定版；失败时**不要手改** `releases/current`，看
+  `/tmp/work-route-stable.log` 并如实汇报。
+- 发布后告诉 lwk「刷新 5180」一次即可；**不要**自己动他的浏览器。
+- 只发布**验证过**的那版（`npm run build` + 开发版真点一遍）；别拿正在改的中间状态发。
+- 其他 Agent 同样适用：这个仓库可能多会话并行，发布前先 `git log -1` 看 HEAD 是什么、是否验证过。
+
+## MCP / 外部 Agent 读写数据（26.11.2 起）
+
+- 开发版（5174）数据文件：`data/routes.json`
+- 稳定版（5180）数据文件：`data/routes-stable.json`（lwk 刷新一次稳定版后，会自动把他 localStorage 的数据写进来）
+- MCP server 在 `mcp/`：`npm run mcp:list`；数据文件默认优先 `routes-stable.json`，可用 `ROUTE_DATA_FILE` 覆盖
+- 网页和文件通过 `/api/routes` + SSE 双向同步；纯静态部署没有接口时自动退回 localStorage
+- 真实数据只落本地文件（已 gitignore），不要提交

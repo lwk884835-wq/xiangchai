@@ -71,7 +71,8 @@ src/
 - 网页 ↔ 文件：开发版走 Vite 的 `/api/routes` + SSE；稳定版走 `scripts/stable-server.mjs` 的同名接口
 - 启动/配置/工具清单：见 `mcp/README.md`
 
-> 稳定版（5180）要等下一次 `npm run release:stable` 才会带上这个接口；没带接口时网页自动退回 localStorage，不影响使用。
+> 稳定版（5180）由 Agent 改完自动发布（`npm run release:auto` 会构建 + 重启 + 健康检查）；没带接口时网页自动退回 localStorage，不影响使用。
+> MCP 默认优先读稳定版数据文件 `data/routes-stable.json`（刷新一次 5180 后自动生成）。
 
 ## 没有的东西（故意不做）
 
@@ -87,9 +88,11 @@ src/
 - **开发版（改代码用）**：<http://127.0.0.1:5174/>（`npm run dev`，随时可能变）
 - **数据是分开的**：localStorage 按 origin 存。第一次把数据搬到稳定版：
   开发版右栏「导出数据」→ 稳定版右栏「导入数据」；之后日常只用稳定版。
-- **发布新稳定版**：`npm run release:stable`（从当前 git HEAD 构建，**不读工作区**，避免把半成品发出去）
-  - 指定提交：`npm run release:stable -- <git-ref>`
-  - 回滚：`npm run release:stable -- <旧提交>`
+- **发布新稳定版**：`npm run release:auto`（= 从 git HEAD 构建 + 备份稳定版数据 + 重启服务 + 健康检查；
+  **不读工作区**，避免把半成品发出去）。平时 Agent 改完会自动跑这个，你只要刷新 5180。
+  - 只发一版、不重启：`npm run release:stable`
+  - 指定提交：`npm run release:auto -- <git-ref>`
+  - 回滚：`npm run release:auto -- <旧提交>`
   - 版本目录 `releases/<时间>-<sha>/`，只保留最近 6 个；服务永远读 `releases/current` 这个软链
 - **停止/卸载常驻服务**：`launchctl bootout gui/$(id -u)/com.lwk.work-route-stable`
   （plist：`~/Library/LaunchAgents/com.lwk.work-route-stable.plist`）
