@@ -17,7 +17,7 @@ function dateLine() {
 }
 
 /**
- * 工作路线首页：一条能长期看下去的行动路线。
+ * 想拆首页：一条能长期看下去的行动路线。
  *
  * 左边是重点清单 + 路线图，右边是这份路线/其它计划的切换栏。
  * 没有 Agent、没有后台：所有交互都是本地的。
@@ -104,7 +104,7 @@ export function RoutePage({
         <header className="flex h-[56px] shrink-0 items-center gap-2.5 border-b border-line/80 px-5 xl:gap-3">
           <div className="min-w-0 shrink">
             <h1 className="truncate text-[17px] leading-tight font-semibold tracking-[-0.015em]">
-              工作路线
+              想拆
             </h1>
             <p className="truncate text-[12px] leading-tight text-faint" title={subtitle}>
               {subtitle}
