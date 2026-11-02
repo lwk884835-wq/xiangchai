@@ -85,7 +85,30 @@
     outline-offset: 2px;
   }
   /* 减少动态偏好：所有动画收掉，只保留状态变化 */
-  @media (prefers-reduced-motion: reduce) {
+  
+/* 面板自己的进出场：飞标只是锦上添花，面板本身也要有明确的动画。
+   宽屏（占一列）和窄屏（浮层）共用。 */
+@keyframes panel-in-soft {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes panel-out-soft {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
@@ -315,6 +338,14 @@
   .anim-panel-fade {
     animation: fade-out 300ms var(--ease-standard) both;
     will-change: opacity;
+  }
+  /* 助手面板自己的进出场（飞标只是附加效果）。
+     必须放在 utilities 层：旧的 .anim-panel-out 也在这里，放 base 层会被它盖掉 */
+  .anim-panel-enter {
+    animation: panel-in-soft 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .anim-panel-leave {
+    animation: panel-out-soft 220ms cubic-bezier(0.4, 0, 1, 1) both;
   }
   .caret::after {
     content: "";

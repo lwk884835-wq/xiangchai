@@ -218,9 +218,9 @@ export function AgentRail({
       <aside
         className={cn(
           'flex flex-col border-r border-line bg-surface-2',
-          closing ? 'anim-panel-fade' : null,
+          closing ? 'anim-panel-leave' : 'anim-panel-enter',
           floating
-            ? 'fixed inset-y-0 left-0 z-40 w-[min(380px,calc(100vw-24px))] shadow-[0_12px_44px_rgba(23,22,26,.24)] anim-fade-in'
+            ? 'fixed inset-y-0 left-0 z-40 w-[min(380px,calc(100vw-24px))] shadow-[0_12px_44px_rgba(23,22,26,.24)]'
             : 'h-full w-[clamp(320px,23vw,380px)] shrink-0',
         )}
       >
