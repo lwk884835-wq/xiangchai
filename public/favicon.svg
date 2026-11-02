@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>岗察</title>
+  <rect width="64" height="64" rx="18" fill="#17161a" />
+  <path
+    d="M17.8 43.9c6.2 0 7.3-23.8 14.2-23.8s6.9 23.8 14.2 23.8"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.94"
+    stroke-width="3.4"
+    stroke-linecap="round"
+  />
+  <circle cx="17.8" cy="43.9" r="4.3" fill="#8b7ff5" />
+  <circle cx="46.2" cy="20.1" r="4.3" fill="#ffffff" />
+</svg>

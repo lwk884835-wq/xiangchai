@@ -1,0 +1,156 @@
+import { memo } from 'react'
+import { Check, ChevronDown, ChevronRight, Pin } from 'lucide-react'
+import type { ActionNode } from '@/types'
+import { cn } from '@/lib/cn'
+
+/**
+ * 层级越深，卡片越小 —— 视觉上直接看出主次。
+ * 窄屏收窄一档：同样的窗口能多露出一层，读起来才连得住。
+ */
+const LEVEL_STYLE: Record<number, { wrap: string; title: string; sub: string }> = {
+  1: {
+    wrap: 'w-[236px] p-3.5 2xl:w-[268px] 2xl:p-4',
+    title: 'text-[14px] 2xl:text-[15px]',
+    sub: 'text-[12px] 2xl:text-[12px]',
+  },
+  2: {
+    wrap: 'w-[212px] p-3 2xl:w-[238px] 2xl:p-3.5',
+    title: 'text-[13px] 2xl:text-[14px]',
+    sub: 'text-[11px] 2xl:text-[12px]',
+  },
+  3: {
+    wrap: 'w-[192px] p-3 2xl:w-[212px]',
+    title: 'text-[12px] 2xl:text-[13px]',
+    sub: 'text-[11px] 2xl:text-[11px]',
+  },
+}
+
+function styleOf(level: number) {
+  return (
+    LEVEL_STYLE[level] ?? {
+      wrap: 'w-[176px] p-2.5 2xl:w-[196px]',
+      title: 'text-[12px] 2xl:text-[12px]',
+      sub: 'text-[10px] 2xl:text-[11px]',
+    }
+  )
+}
+
+export const NodeCard = memo(function NodeCard({
+  node,
+  onOpen,
+  onToggle,
+  onPin,
+  compact,
+  childCount = 0,
+  collapsed = false,
+  onToggleCollapse,
+  progress = 'todo',
+}: {
+  node: ActionNode
+  onOpen: (id: string) => void
+  onToggle: (id: string) => void
+  onPin: (id: string, pinned: boolean) => void
+  compact?: boolean
+  childCount?: number
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+  /** 推进状态：已完成 / 进行中 / 还没开始 —— 靠卡片底色区分 */
+  progress?: 'done' | 'doing' | 'todo'
+}) {
+  const st = styleOf(node.level)
+  return (
+    <div
+      data-node-id={node.id}
+      className={cn(
+        'lift group relative shrink-0 rounded-[16px] border',
+        st.wrap,
+        // 底色 = 推进速度：搞定 / 进行中 / 还没开始
+        progress === 'done'
+          ? 'border-ok/20 bg-ok-soft/75'
+          : progress === 'doing'
+            ? 'border-accent-line bg-accent-soft/60 shadow-[0_1px_2px_rgba(23,22,26,.04)]'
+            : 'border-transparent bg-surface shadow-e1 hover:border-line/70',
+        node.pinned && 'ring-1 ring-accent-line/70',
+      )}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpen(node.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen(node.id)
+          }
+        }}
+        className={cn(
+          'block w-full cursor-pointer text-left',
+          // 给右下角的「N 个子任务」按钮留一行，不然它压在描述最后一行上
+          childCount > 0 && 'pb-[11px]',
+        )}
+      >
+        <div className="flex items-start gap-1.5 pr-5">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle(node.id)
+            }}
+            className={cn(
+              'mt-[2px] flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[4px] border transition-all duration-150 active:scale-90',
+              node.done ? 'border-ok bg-ok text-white' : 'border-line-2 hover:border-ink',
+            )}
+            title={node.done ? '已完成' : '标记完成'}
+          >
+            {node.done && <Check size={10} strokeWidth={3} />}
+          </button>
+          <span
+            className={cn(
+              'min-w-0 flex-1 leading-snug font-semibold',
+              st.title,
+              node.done ? 'text-faint line-through decoration-line-2' : 'text-ink',
+            )}
+          >
+            {node.title}
+          </span>
+        </div>
+        {!compact && node.purpose && (
+          <p className={cn('mt-1.5 line-clamp-2 leading-[1.7] text-muted', st.sub)}>{node.purpose}</p>
+        )}
+      </div>
+
+      {childCount > 0 && onToggleCollapse && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleCollapse()
+          }}
+          title={collapsed ? '展开子任务' : '收起子任务'}
+          className={cn(
+            'absolute bottom-1 right-1 flex h-[20px] items-center gap-0.5 rounded-md px-1.5 text-[10px] transition-colors',
+            'text-faint opacity-0 hover:bg-surface-3 hover:text-ink group-hover:opacity-100',
+            collapsed && 'bg-accent-soft text-accent-ink opacity-100',
+          )}
+        >
+          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+          {collapsed ? `${childCount} 个子任务` : '收起'}
+        </button>
+      )}
+
+      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onPin(node.id, !node.pinned)
+          }}
+          title={node.pinned ? '从重点里拿掉' : '定到重点'}
+          className={cn(
+            'flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3',
+            node.pinned && 'text-accent opacity-100',
+          )}
+        >
+          <Pin size={11} />
+        </button>
+      </div>
+    </div>
+  )
+})

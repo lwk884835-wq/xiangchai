@@ -1,0 +1,472 @@
+@import "tailwindcss";
+
+/* ============================================================
+   岗察 · 设计系统
+   一层语义 token（@theme）→ 全站只用这组原子类，不写散装颜色。
+   底色偏暖的纸感，把「AI 感」收在一个紫色 accent 上，
+   其余靠字重、留白和 1px 细线分层。
+   ============================================================ */
+
+@theme {
+  /* 底色：偏暖的纸感，但比上一版多一层明度层次，不再是一块糊住的米灰 */
+  --color-bg: #f0ece3;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbf9f5;
+  --color-surface-3: #f4f0e8;
+  --color-desk: #e9e4d8;
+  --color-ink: #161519;
+  --color-ink-2: #3c3a42;
+  --color-muted: #787268;
+  --color-faint: #a49e94;
+  --color-line: #e4ded1;
+  --color-line-2: #d5cec0;
+  /* accent 收得更沉一点，留给「主要动作 / 当前选中 / 进度」三处用，别到处铺 */
+  --color-accent: #4b41d2;
+  --color-accent-ink: #372db0;
+  --color-accent-soft: #efedfd;
+  --color-accent-line: #d8d2fb;
+  --color-ok: #14724a;
+  --color-ok-soft: #e7f4ec;
+  --color-warn: #9a5f0b;
+  --color-warn-soft: #fcf1df;
+  --color-danger: #b23b24;
+  --color-danger-soft: #fbeae5;
+
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-panel: 18px;
+
+  /* 西文和数字用 Inter（中文仍走系统字体）；西文比苹方自带西文更利落 */
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* 三层高度：卡片 / 悬浮 / 浮层。以前只有 1-2px，卡片立不起来 */
+  --shadow-e1: 0 1px 2px rgba(26, 23, 18, 0.05), 0 2px 8px -2px rgba(26, 23, 18, 0.07);
+  --shadow-e2: 0 2px 6px rgba(26, 23, 18, 0.05), 0 16px 32px -16px rgba(26, 23, 18, 0.16);
+  --shadow-e3: 0 8px 20px -6px rgba(24, 22, 20, 0.14), 0 28px 64px -28px rgba(24, 22, 20, 0.26);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  :root {
+    /* 动效节奏：快而准。数字统一从这里取，别再各写各的 */
+    --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.06);
+    --dur-1: 120ms;
+    --dur-2: 180ms;
+    --dur-3: 240ms;
+    --dur-4: 320ms;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* 大标题收紧一点字距，中文标题就不会显得松垮 */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.01em;
+  }
+  /* 键盘焦点统一给一圈，别让 tab 用户找不到位置 */
+  :where(button, a, input, textarea, select, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent) 50%, transparent);
+    outline-offset: 2px;
+  }
+  /* 减少动态偏好：所有动画收掉，只保留状态变化 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  ::selection {
+    background: #dcd7fb;
+    color: #221d6b;
+  }
+  button {
+    cursor: pointer;
+  }
+  input,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  textarea:focus,
+  input:focus {
+    outline: none;
+  }
+  /* 细一点的滚动条，别抢视觉 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d5d0c4 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #d5d0c4;
+    border-radius: 99px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #bdb7a9;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
+    border-radius: 16px;
+    box-shadow: var(--shadow-e1);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--radius-control);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+    border: 1px solid transparent;
+    transition: background var(--dur-2) var(--ease-standard),
+      border-color var(--dur-2) var(--ease-standard), color var(--dur-2) var(--ease-standard),
+      transform var(--dur-1) var(--ease-standard), box-shadow var(--dur-2) var(--ease-standard);
+    white-space: nowrap;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(0.5px) scale(0.99);
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  .btn-ink {
+    background: var(--color-ink);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(23, 22, 26, 0.2);
+  }
+  .btn-ink:hover {
+    background: #2b2930;
+  }
+  .btn-line {
+    background: var(--color-surface);
+    border-color: var(--color-line-2);
+    color: var(--color-ink-2);
+    box-shadow: 0 1px 1px rgba(24, 22, 20, 0.03);
+  }
+  .btn-line:hover:not(:disabled) {
+    border-color: #c3bcad;
+    background: var(--color-surface-2);
+    box-shadow: var(--shadow-e1);
+  }
+  .btn-accent {
+    background: var(--color-accent);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(79, 69, 214, 0.35);
+  }
+  .btn-accent:hover {
+    background: #443abf;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-muted);
+    height: 28px;
+    padding: 0 8px;
+  }
+  .btn-ghost:hover {
+    background: rgba(23, 22, 26, 0.05);
+    color: var(--color-ink);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--color-surface-3);
+    color: var(--color-ink-2);
+    border: 1px solid var(--color-line);
+    white-space: nowrap;
+  }
+  /* 输入框统一基座：焦点时给一圈很淡的 accent 光，而不是换边框颜色 */
+  .field {
+    width: 100%;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--color-line);
+    background: var(--color-surface-2);
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--color-ink);
+    transition: border-color var(--dur-2) var(--ease-standard),
+      box-shadow var(--dur-2) var(--ease-standard), background var(--dur-2) var(--ease-standard);
+  }
+  .field::placeholder {
+    color: var(--color-faint);
+  }
+  .field:hover {
+    border-color: var(--color-line-2);
+  }
+  .field:focus {
+    outline: none;
+    background: var(--color-surface);
+    border-color: var(--color-accent-line);
+    box-shadow: 0 0 0 3px rgba(75, 65, 210, 0.1);
+  }
+  .label {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+    font-weight: 600;
+  }
+  .hairline {
+    height: 1px;
+    background: var(--color-line);
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@layer utilities {
+  /* 应用画布：中间亮、边缘略暗，给三栏一个共同的「桌面」而不是三块白板 */
+  .app-canvas {
+    background:
+      radial-gradient(1100px 520px at 14% -8%, #fbf9f4 0%, rgba(251, 249, 244, 0) 62%),
+      radial-gradient(900px 460px at 102% -12%, #f5f1e7 0%, rgba(245, 241, 231, 0) 58%),
+      var(--color-bg);
+  }
+  .shadow-e1 {
+    box-shadow: var(--shadow-e1);
+  }
+  .shadow-e2 {
+    box-shadow: var(--shadow-e2);
+  }
+  .shadow-e3 {
+    box-shadow: var(--shadow-e3);
+  }
+  /* 可点卡片的统一手感：抬 1px + 阴影升级，不缩放（缩放会让文字发虚） */
+  .lift {
+    transition: transform var(--dur-2) var(--ease-standard),
+      box-shadow var(--dur-2) var(--ease-standard), border-color var(--dur-2) var(--ease-standard);
+  }
+  .lift:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-e2);
+  }
+  .anim-fade-up {
+    animation: fade-up var(--dur-4) var(--ease-standard) both;
+  }
+  .anim-fade-in {
+    animation: fade-in var(--dur-3) var(--ease-standard) both;
+  }
+  .anim-pop {
+    animation: pop var(--dur-3) var(--ease-spring) both;
+  }
+  .anim-slide-right {
+    animation: slide-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .anim-slide-left {
+    animation: slide-left 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* 换页：整块内容淡入，别硬切 */
+  .anim-page-in {
+    animation: page-in var(--dur-3) var(--ease-standard) both;
+  }
+  /* 侧滑面板：节点抽屉这种只移一小段的，0.5s 太慢 */
+  .anim-drawer-in {
+    animation: slide-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* 收起面板：先淡出再让外层卸载。用 keyframes 而不是 transition——
+     元素身上还挂着入场动画（fill both）时，transition 会被动画值覆盖、直接跳变 */
+  .anim-panel-out {
+    animation: panel-out var(--dur-2) var(--ease-standard) both;
+  }
+  .anim-fade-out {
+    animation: fade-out var(--dur-2) var(--ease-standard) both;
+  }
+  /* 宽屏面板收起：只淡出，不做位移/布局动画（避免主内容逐帧重排） */
+  .anim-panel-fade {
+    animation: fade-out 300ms var(--ease-standard) both;
+    will-change: opacity;
+  }
+  .caret::after {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.12em;
+    background: var(--color-accent);
+    animation: blink 1s steps(2, start) infinite;
+  }
+  .ease-out-expo {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  * {
+    animation: none !important;
+    box-shadow: none !important;
+  }
+  .print-page {
+    page-break-after: always;
+    break-after: page;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes panel-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 品牌标从导航栏滑到 Agent 面板头部：起点和本体完全重合，像它自己飞过去了 */
+@keyframes mark-fly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  55% {
+    transform: translate(calc(var(--fly-x) * 1.05), calc(var(--fly-y) * 1.05))
+      scale(calc(var(--fly-s) * 1.1));
+    opacity: 1;
+  }
+  /* 落点就是头像的位置、尺寸和透明度，交接那一下才看不出换了个元素。
+     以前 100% 处 opacity 淡到 0：飞行体先消失、头像后出现，中间空一拍，
+     看着就是「闪一下」。 */
+  100% {
+    transform: translate(var(--fly-x), var(--fly-y)) scale(var(--fly-s));
+    opacity: 1;
+  }
+}
+/* 换页只淡入 + 极小的上移，不用 scale，免得在 fixed 元素上留下层叠上下文 */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+@keyframes drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(6px, -6px);
+  }
+}
