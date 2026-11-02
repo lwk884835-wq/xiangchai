@@ -45,9 +45,10 @@ interface ActionState {
   ) => string
   updateNode: (id: string, patch: Partial<ActionNode>, boardId?: string) => void
   toggleNode: (id: string, boardId?: string) => void
-  /** 勾选是级联的，每次改动都记一笔，方便回退 */
-  doneHistory: { boardId: string; before: Record<string, boolean> }[]
-  undoDone: () => void
+  /** 撤销栈：勾选 / 删除 / 拖拽前各存一份整路线快照，删错了能整体退回去 */
+  history: { label: string; boards: ActionBoard[]; activeBoardId: string | null }[]
+  /** 撤回上一步，返回那一步的名字（勾选/删除/拖拽…）；没有可撤回的返回 null */
+  undo: () => string | null
   pinNode: (id: string, pinned: boolean, boardId?: string) => void
   removeNode: (id: string, boardId?: string) => void
   moveNode: (id: string, dir: -1 | 1, boardId?: string) => void
@@ -68,7 +69,7 @@ interface ActionState {
    */
   moveSubtree: (id: string, targetId: string, boardId?: string) => void
   /** 拖到路线列表：整串搬到另一条路线，挂到那条路线最后一个目标下面 */
-  moveSubtreeToBoard: (id: string, targetBoardId: string) => void
+  moveSubtreeToBoard: (id: string, targetBoardId: string, targetId?: string) => void
   toggleCollapse: (id: string, boardId?: string) => void
 
   addFocusItem: (text: string) => void
@@ -95,12 +96,23 @@ export const useActions = create<ActionState>()(
           boards: s.boards.map((b) => (b.id === (boardId ?? s.activeBoardId) ? fn(b) : b)),
         }))
 
+      /** 记一步「改动前」的整份路线快照：勾选/删除/拖拽都用同一个撤回按钮 */
+      const cloneBoards = (boards: ActionBoard[]) =>
+        JSON.parse(JSON.stringify(boards)) as ActionBoard[]
+      const pushHistory = (label: string) =>
+        set((s) => ({
+          history: [
+            { label, boards: cloneBoards(s.boards), activeBoardId: s.activeBoardId },
+            ...s.history,
+          ].slice(0, 30),
+        }))
+
       return {
         boards: [],
         activeBoardId: null,
         focusItems: [],
         collapsed: {},
-        doneHistory: [],
+        history: [],
 
         addBoard: (b) => {
           const id = `bd-${uid()}`
@@ -213,7 +225,7 @@ export const useActions = create<ActionState>()(
             - 勾上串行链里靠后的一步 → 前面几步、以及它显式声明的前置（deps）都一起勾上
             - 反过来取消 → 自己、下面的、上面的、以及依赖它的后续任务都松开，
               不然会出现「父级没做完子级却完成」「前置没做后面却完成」
-            动到哪些节点、原来是什么状态，都存一笔到 doneHistory，界面上可以撤回。
+            动之前把整份路线快照压进撤销栈，界面上用同一个「撤回」按钮退回去。
           */
           const hit = new Set<string>([id])
           const byId = new Map(board.nodes.map((n) => [n.id, n]))
@@ -271,11 +283,9 @@ export const useActions = create<ActionState>()(
             }
           }
 
-          const before: Record<string, boolean> = {}
-          for (const n of board.nodes) if (hit.has(n.id)) before[n.id] = n.done
+          pushHistory('勾选')
 
           set((s) => ({
-            doneHistory: [{ boardId: board.id, before }, ...s.doneHistory].slice(0, 20),
             boards: s.boards.map((b) =>
               b.id === board.id
                 ? { ...b, nodes: b.nodes.map((n) => (hit.has(n.id) ? { ...n, done: next } : n)) }
@@ -284,22 +294,15 @@ export const useActions = create<ActionState>()(
           }))
         },
 
-        undoDone: () => {
-          const last = get().doneHistory[0]
-          if (!last) return
+        undo: () => {
+          const last = get().history[0]
+          if (!last) return null
           set((s) => ({
-            doneHistory: s.doneHistory.slice(1),
-            boards: s.boards.map((b) =>
-              b.id === last.boardId
-                ? {
-                    ...b,
-                    nodes: b.nodes.map((n) =>
-                      n.id in last.before ? { ...n, done: last.before[n.id] } : n,
-                    ),
-                  }
-                : b,
-            ),
+            history: s.history.slice(1),
+            boards: last.boards,
+            activeBoardId: last.activeBoardId ?? s.activeBoardId,
           }))
+          return last.label
         },
 
         pinNode: (id, pinned, boardId) =>
@@ -345,6 +348,7 @@ export const useActions = create<ActionState>()(
           const board = boardOf(boardId)
           const node = board?.nodes.find((n) => n.id === id)
           if (!board || !node) return
+          pushHistory('独立成线')
 
           // 同一父级、同一 branch 的兄弟，数组顺序就是串行顺序
           const mates = board.nodes.filter(
@@ -390,6 +394,7 @@ export const useActions = create<ActionState>()(
           const board = boardOf(boardId)
           const node = board?.nodes.find((n) => n.id === id)
           if (!board || !node) return
+          pushHistory('删除')
 
           const nodes = board.nodes
           // 同一串（同父级 + 同 branch）里，按数组顺序排在它后面的兄弟
@@ -434,10 +439,18 @@ export const useActions = create<ActionState>()(
           })
         },
 
-        moveSubtree: (id, targetId, boardId) => {
-          const board = boardOf(boardId)
-          if (!board || id === targetId) return
-          const nodes = board.nodes
+        moveSubtree: (id, targetId) => {
+          if (id === targetId) return
+          const s0 = get()
+          const fromBoard = s0.boards.find((b) => b.nodes.some((n) => n.id === id))
+          const toBoard = s0.boards.find((b) => b.nodes.some((n) => n.id === targetId))
+          if (!fromBoard || !toBoard) return
+          // 目标在另一条路线：转跨路线搬运
+          if (fromBoard.id !== toBoard.id) {
+            get().moveSubtreeToBoard(id, toBoard.id, targetId)
+            return
+          }
+          const nodes = fromBoard.nodes
           const node = nodes.find((n) => n.id === id)
           const target = nodes.find((n) => n.id === targetId)
           if (!node || !target) return
@@ -456,20 +469,25 @@ export const useActions = create<ActionState>()(
             for (const n of nodes) if (n.parentId === rootId) collect(n.id)
           }
           for (const c of chain) collect(c.id)
-          // 不能拖到自己的子树里（会成环）
           if (moving.has(target.id)) return
 
-          // 接在目标现有子任务的最后一条后面；没有子任务就作为第一个子任务
-          const kids = nodes.filter((n) => n.parentId === target.id && !moving.has(n.id))
-          const last = kids[kids.length - 1] ?? null
-          const destBranch = last ? last.branch || '' : target.branch || ''
-          const destDeps = last ? [last.id] : []
+          /*
+            放到目标卡片上 = 变成目标的**一条新的并行子链**：
+            给它一条自己的 branch（并行N），不接目标现有子任务的后面。
+            被拖的这段如果本来是一串（A→B→C），搬过去仍然是一串。
+          */
+          const used = new Set(
+            nodes
+              .filter((n) => n.parentId === target.id && !moving.has(n.id))
+              .map((n) => n.branch || ''),
+          )
+          let bi = 1
+          while (used.has(`并行${bi}`)) bi++
+          const destBranch = `并行${bi}`
           const delta = target.level + 1 - node.level
-
-          // 先按原顺序挑出要移动的节点，再整体挪到数组末尾（保证排在目标子任务之后）
+          const chainIds = new Set(chain.map((c) => c.id))
           const movingNodes = nodes.filter((n) => moving.has(n.id))
           const kept = nodes.filter((n) => !moving.has(n.id))
-          const chainIds = new Set(chain.map((c) => c.id))
           const updated = movingNodes.map((n) => {
             if (chainIds.has(n.id)) {
               return {
@@ -477,19 +495,20 @@ export const useActions = create<ActionState>()(
                 level: Math.max(1, n.level + delta),
                 parentId: target.id,
                 branch: destBranch,
-                parallel: false,
-                deps: n.id === id ? destDeps : n.deps,
+                parallel: n.id === id,
+                deps: n.id === id ? [] : n.deps,
               }
             }
             return { ...n, level: Math.max(1, n.level + delta) }
           })
-          patchBoard(boardId, (b) => ({ ...b, nodes: [...kept, ...updated] }))
+          pushHistory('拖拽')
+          patchBoard(fromBoard.id, (b) => ({ ...b, nodes: [...kept, ...updated] }))
         },
 
-        moveSubtreeToBoard: (id, targetBoardId) => {
-          const s = get()
-          const from = s.boards.find((b) => b.nodes.some((n) => n.id === id))
-          const to = s.boards.find((b) => b.id === targetBoardId)
+        moveSubtreeToBoard: (id, targetBoardId, targetId) => {
+          const s0 = get()
+          const from = s0.boards.find((b) => b.nodes.some((n) => n.id === id))
+          const to = s0.boards.find((b) => b.id === targetBoardId)
           if (!from || !to || from.id === to.id) return
           const node = from.nodes.find((n) => n.id === id)
           if (!node) return
@@ -508,31 +527,41 @@ export const useActions = create<ActionState>()(
           }
           for (const c of chain) collect(c.id)
 
-          const movingNodes = from.nodes.filter((n) => moving.has(n.id))
-          const root = [...to.nodes].reverse().find((n) => n.parentId === null) ?? null
-          const anchorKids = root ? to.nodes.filter((n) => n.parentId === root.id) : []
-          const lastKid = anchorKids[anchorKids.length - 1] ?? null
-          const destBranch = root ? (lastKid ? lastKid.branch || '' : root.branch || '') : ''
-          const destDeps = root && lastKid ? [lastKid.id] : []
-          const baseLevel = root ? (lastKid ? lastKid.level : root.level + 1) : 1
+          // 落点：指定了目标卡片 → 成为它的并行子链；否则挂到最后一个目标下；空路线 → 作为新目标
+          const target = targetId ? (to.nodes.find((n) => n.id === targetId) ?? null) : null
+          const parent =
+            target ??
+            (to.nodes.length
+              ? ([...to.nodes].reverse().find((n) => n.parentId === null) ?? null)
+              : null)
+          const usedBranches = new Set(
+            parent ? to.nodes.filter((n) => n.parentId === parent.id).map((n) => n.branch || '') : [],
+          )
+          let bi = 1
+          while (usedBranches.has(`并行${bi}`)) bi++
+          const destBranch = parent ? `并行${bi}` : ''
+          const baseLevel = parent ? parent.level + 1 : 1
           const delta = baseLevel - node.level
           const chainIds = new Set(chain.map((c) => c.id))
 
+          const movingNodes = from.nodes.filter((n) => moving.has(n.id))
           const updated = movingNodes.map((n) => {
             if (chainIds.has(n.id)) {
               return {
                 ...n,
                 level: Math.max(1, n.level + delta),
-                parentId: root ? root.id : null,
+                parentId: parent ? parent.id : null,
                 branch: destBranch,
-                parallel: false,
-                deps: n.id === id ? destDeps : n.deps,
+                parallel: n.id === id,
+                deps: n.id === id ? [] : n.deps,
               }
             }
             return { ...n, level: Math.max(1, n.level + delta) }
           })
 
+          pushHistory('跨路线拖拽')
           set((s2) => ({
+            activeBoardId: to.id,
             boards: s2.boards.map((b) => {
               if (b.id === from.id) return { ...b, nodes: b.nodes.filter((n) => !moving.has(n.id)) }
               if (b.id === to.id) return { ...b, nodes: [...b.nodes, ...updated] }
@@ -648,6 +677,8 @@ export const useActions = create<ActionState>()(
           collapsed,
           activeBoardId:
             boards.find((b) => b.id === p.activeBoardId)?.id ?? boards[0]?.id ?? null,
+          // 撤销栈不落盘：恢复上一次的删除快照会跨刷新出错
+          history: [],
         }
       },
     },

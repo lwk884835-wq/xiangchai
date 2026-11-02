@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Archive,
   Check,
@@ -11,6 +11,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
+import type { ActionNode } from '@/types'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
 
@@ -36,6 +37,54 @@ export function BoardList() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   /** 拖拽悬停在哪条路线上（跨路线搬家用） */
   const [dropBoardId, setDropBoardId] = useState<string | null>(null)
+  /** 跨路线拖拽时预览目标路线的结构，选精确落点 */
+  const [previewBoardId, setPreviewBoardId] = useState<string | null>(null)
+  const [previewDropId, setPreviewDropId] = useState<string | null>(null)
+
+  // 拖拽结束后（无论落在哪）把预览收掉
+  useEffect(() => {
+    const clear = () => {
+      setPreviewBoardId(null)
+      setPreviewDropId(null)
+      setDropBoardId(null)
+    }
+    window.addEventListener('dragend', clear)
+    window.addEventListener('drop', clear)
+    return () => {
+      window.removeEventListener('dragend', clear)
+      window.removeEventListener('drop', clear)
+    }
+  }, [])
+
+  /** 预览面板里的树：按层级先序遍历，缩进展示 */
+  const previewTree = useMemo(() => {
+    if (!previewBoardId) return [] as { node: ActionNode; depth: number }[]
+    const board = boards.find((b) => b.id === previewBoardId)
+    if (!board) return [] as { node: ActionNode; depth: number }[]
+    const out: { node: ActionNode; depth: number }[] = []
+    const walk = (pid: string | null, depth: number) => {
+      for (const n of board.nodes.filter((x) => x.parentId === pid)) {
+        out.push({ node: n, depth })
+        walk(n.id, depth + 1)
+      }
+    }
+    walk(null, 0)
+    return out
+  }, [previewBoardId, boards])
+
+  const crossDrop = (e: React.DragEvent, targetNodeId: string | null) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const nodeId = e.dataTransfer.getData('application/x-route-node')
+    const toId = previewBoardId
+    setPreviewBoardId(null)
+    setPreviewDropId(null)
+    setDropBoardId(null)
+    if (!nodeId || !toId) return
+    moveSubtreeToBoard(nodeId, toId, targetNodeId ?? undefined)
+    const to = boards.find((b) => b.id === toId)
+    toast(`已搬到「${to?.jobTitle ?? '目标路线'}」`)
+  }
   const [showArchived, setShowArchived] = useState(false)
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -77,12 +126,18 @@ export function BoardList() {
           return (
             <div
               key={b.id}
+              onDragEnter={(e) => {
+                if (!e.dataTransfer.types.includes('application/x-route-node')) return
+                if (b.id === activeId) return
+                setPreviewBoardId(b.id)
+              }}
               onDragOver={(e) => {
                 if (!e.dataTransfer.types.includes('application/x-route-node')) return
                 if (b.id === activeId) return
                 e.preventDefault()
                 e.dataTransfer.dropEffect = 'move'
                 setDropBoardId(b.id)
+                setPreviewBoardId(b.id)
               }}
               onDragLeave={() => setDropBoardId((cur) => (cur === b.id ? null : cur))}
               onDrop={(e) => {
@@ -281,6 +336,72 @@ export function BoardList() {
             }}
           />
         </div>
+
+
+      {previewBoardId &&
+        (() => {
+          const board = boards.find((b) => b.id === previewBoardId)
+          if (!board) return null
+          return (
+            <div
+              className="fixed z-[60] flex max-h-[72vh] w-[300px] flex-col overflow-hidden rounded-[16px] border border-line/70 bg-surface shadow-e3 anim-pop"
+              style={{ right: 'calc(clamp(210px, 13vw, 260px) + 12px)', top: 96 }}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <div className="border-b border-line/70 px-3 py-2">
+                <div className="truncate text-[12px] font-semibold">落到「{board.jobTitle}」</div>
+                <div className="mt-0.5 text-[10px] leading-snug text-faint">
+                  拖到某张卡片上 = 变成它的并行子任务
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setPreviewDropId('__tail__')
+                  }}
+                  onDragLeave={() => setPreviewDropId((cur) => (cur === '__tail__' ? null : cur))}
+                  onDrop={(e) => crossDrop(e, null)}
+                  className={cn(
+                    'mb-1 cursor-pointer rounded-md border border-dashed px-2 py-1.5 text-[10.5px] transition-colors',
+                    previewDropId === '__tail__'
+                      ? 'border-accent-line bg-accent-soft text-accent-ink'
+                      : 'border-line text-faint hover:bg-surface-3',
+                  )}
+                >
+                  放到这条路线末尾
+                </div>
+                {previewTree.map(({ node, depth }) => (
+                  <div
+                    key={node.id}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setPreviewDropId(node.id)
+                    }}
+                    onDragLeave={() => setPreviewDropId((cur) => (cur === node.id ? null : cur))}
+                    onDrop={(e) => crossDrop(e, node.id)}
+                    style={{ paddingLeft: 10 + depth * 14 }}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors',
+                      previewDropId === node.id
+                        ? 'bg-accent-soft text-accent-ink ring-1 ring-accent-line'
+                        : 'text-ink-2 hover:bg-surface-3',
+                    )}
+                  >
+                    {depth > 0 && <span className="shrink-0 text-faint">·</span>}
+                    <span className="min-w-0 flex-1 truncate">{node.title}</span>
+                    <span className="shrink-0 text-[9px] text-faint">L{node.level}</span>
+                  </div>
+                ))}
+                {!previewTree.length && (
+                  <p className="px-2 py-3 text-center text-[10.5px] text-faint">
+                    这条路线还是空的，会作为新的目标
+                  </p>
+                )}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

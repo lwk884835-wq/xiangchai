@@ -40,8 +40,8 @@ export function RoutePage({
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const toggleCollapse = useActions((s) => s.toggleCollapse)
-  const doneHistory = useActions((s) => s.doneHistory)
-  const undoDone = useActions((s) => s.undoDone)
+  const history = useActions((s) => s.history)
+  const undo = useActions((s) => s.undo)
   const toast = useUi((s) => s.showToast)
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -173,14 +173,17 @@ export function RoutePage({
               <span className="hidden truncate text-[12px] text-faint lg:inline">
                 勾父任务会连带勾上子任务 · 勾后面一步会连带勾上前面的
               </span>
-              {doneHistory.length > 0 && (
+              {history.length > 0 && (
                 <button
-                  onClick={undoDone}
-                  title="撤回上一次勾选（连带改动一起回退）"
+                  onClick={() => {
+                    const label = undo()
+                    if (label) toast(`已撤回${label}`)
+                  }}
+                  title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
                   className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-[3px] text-[11px] text-muted transition-colors hover:border-line-2 hover:bg-surface-3 hover:text-ink"
                 >
                   <Undo2 size={11} />
-                  撤回勾选
+                  撤回{history[0].label}
                 </button>
               )}
             </header>
