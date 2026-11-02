@@ -44,6 +44,18 @@ export function NodeDrawer({
     () => (node ? childrenOf(nodes, node.id) : []),
     [nodes, node],
   )
+  // 子任务按 branch 分组：同一 branch = 一条串行线，抽屉里用框分开，跟路线图对齐
+  const kidGroups = useMemo(() => {
+    const map = new Map<string, ActionNode[]>()
+    for (const k of kids) {
+      const key = k.branch || ''
+      const arr = map.get(key)
+      if (arr) arr.push(k)
+      else map.set(key, [k])
+    }
+    return [...map.values()]
+  }, [kids])
+
   // 位置上下文：箭头多了以后，看不清自己在哪一层。
   // 统一问 store 要，别在这儿再算一遍——两处各算一份，改了一处漏一处。
   const ctx = useMemo(
@@ -338,28 +350,36 @@ export function NodeDrawer({
 
           <div>
             <label className="label">子任务（{kids.length}）</label>
-            <div className="mt-1 space-y-1">
-              {kids.map((k) => (
+            <div className="mt-1 space-y-1.5">
+              {kidGroups.map((group) => (
+                // 一组 = 路线图里同一行的那一串串行任务；框起来才分得清哪几条是一串
                 <div
-                  key={k.id}
-                  className="group flex items-center gap-2 rounded-lg border border-line px-2 py-1.5"
+                  key={group[0].id}
+                  className="rounded-lg border border-line/80 bg-surface-2/60 p-1"
                 >
-                  <button
-                    onClick={() => toggleNode(k.id)}
-                    className={cn(
-                      'flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-[3px] border',
-                      k.done ? 'border-ok bg-ok text-white' : 'border-line-2',
-                    )}
-                  >
-                    {k.done && <Check size={8} strokeWidth={3} />}
-                  </button>
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{k.title}</span>
-                  <button
-                    onClick={() => removeNode(k.id)}
-                    className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-danger-soft hover:text-danger"
-                  >
-                    <Trash2 size={11} />
-                  </button>
+                  {group.map((k) => (
+                    <div
+                      key={k.id}
+                      className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-surface-3/70"
+                    >
+                      <button
+                        onClick={() => toggleNode(k.id)}
+                        className={cn(
+                          'flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-[3px] border',
+                          k.done ? 'border-ok bg-ok text-white' : 'border-line-2',
+                        )}
+                      >
+                        {k.done && <Check size={8} strokeWidth={3} />}
+                      </button>
+                      <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{k.title}</span>
+                      <button
+                        onClick={() => removeNode(k.id)}
+                        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ))}
               {!kids.length && (
