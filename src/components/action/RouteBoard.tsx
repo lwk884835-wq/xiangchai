@@ -249,6 +249,8 @@ export const RouteBoard = memo(function RouteBoard({
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
   /** 菜单实际尺寸量出来后，再夹进视口，避免贴边时弹到屏幕外 */
   const menuRef = useRef<HTMLDivElement>(null)
+  /** 路线区外框（空态也挂），夹菜单时用来避开左右两边栏 */
+  const boardAreaRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ left: 0, top: 0 })
   useLayoutEffect(() => {
     if (!ctxMenu) return
@@ -256,10 +258,23 @@ export const RouteBoard = memo(function RouteBoard({
     const w = el?.offsetWidth ?? 238
     const h = el?.offsetHeight ?? 320
     const margin = 8
-    setMenuPos({
-      left: Math.max(margin, Math.min(ctxMenu.x, window.innerWidth - w - margin)),
-      top: Math.max(margin, Math.min(ctxMenu.y, window.innerHeight - h - margin)),
-    })
+    /*
+      右边栏（路线列表）会盖住路线区右侧一块，不能只按 window 宽度夹：
+      能用的横向范围 = 路线区自己的矩形，菜单不许压到右边栏（和左边助手栏）上面。
+    */
+    const area =
+      scrollRef.current?.getBoundingClientRect() ??
+      boardAreaRef.current?.getBoundingClientRect()
+    const minLeft = area ? area.left + margin : margin
+    const maxRight = area ? area.right - margin : window.innerWidth - margin
+    const minTop = Math.max(margin, area ? area.top + margin : margin)
+    const maxBottom = Math.min(window.innerHeight - margin, area ? area.bottom - margin : Infinity)
+    const left = Math.min(Math.max(ctxMenu.x, minLeft), Math.max(minLeft, maxRight - w))
+    const top = Math.min(
+      Math.max(ctxMenu.y, minTop),
+      Math.max(minTop, (Number.isFinite(maxBottom) ? maxBottom : window.innerHeight - margin) - h),
+    )
+    setMenuPos({ left, top })
   }, [ctxMenu])
   /** 键盘复制/粘贴时，光标停在哪个卡片上 */
   const hoveredRef = useRef<string | null>(null)
@@ -839,6 +854,7 @@ export const RouteBoard = memo(function RouteBoard({
   if (!roots.length) {
     return (
       <div
+        ref={boardAreaRef}
         className="relative"
         onContextMenu={(e) => {
           if ((e.target as HTMLElement).closest('[data-node-id]')) return
@@ -862,6 +878,7 @@ export const RouteBoard = memo(function RouteBoard({
 
   return (
     <div
+      ref={boardAreaRef}
       className="relative"
       onContextMenu={(e) => {
         if ((e.target as HTMLElement).closest('[data-node-id]')) return
