@@ -47,6 +47,11 @@ interface ActionState {
   collapsed: Record<string, string[]>
   /** 路线文件夹（右栏用来归纳路线；顺序即显示顺序） */
   folders: string[]
+  /** 正文里插入的图片：id → dataURL（正文用 [[img:id]] 引用，避免把 base64 塞进每段文字） */
+  images: Record<string, string>
+  addImage: (id: string, dataUrl: string) => void
+  /** 清掉没有任何正文再引用的图片 */
+  pruneImages: () => number
 
   addFolder: (name: string) => string
   removeFolder: (name: string) => void
@@ -163,8 +168,33 @@ export const useActions = create<ActionState>()(
         focusItems: [],
         collapsed: {},
         folders: [],
+        images: {},
         history: [],
         clipboard: null,
+
+        addImage: (id, dataUrl) =>
+          set((s) => ({ images: { ...s.images, [id]: dataUrl } })),
+
+        pruneImages: () => {
+          const s0 = get()
+          const used = new Set<string>()
+          for (const b of s0.boards) {
+            for (const n of b.nodes) {
+              for (const field of [n.title, n.purpose, n.detail, n.notes]) {
+                if (!field) continue
+                for (const m of field.matchAll(/\[\[img:([A-Za-z0-9_-]+)\]\]/g)) used.add(m[1])
+              }
+            }
+          }
+          const images: Record<string, string> = {}
+          let removed = 0
+          for (const [id, url] of Object.entries(s0.images)) {
+            if (used.has(id)) images[id] = url
+            else removed++
+          }
+          if (removed) set({ images })
+          return removed
+        },
 
         addFolder: (name) => {
           const clean = name.trim()
@@ -1055,6 +1085,14 @@ export const useActions = create<ActionState>()(
           p.collapsed && typeof p.collapsed === 'object' && !Array.isArray(p.collapsed)
             ? p.collapsed
             : {}
+        const images: Record<string, string> =
+          p.images && typeof p.images === 'object' && !Array.isArray(p.images)
+            ? Object.fromEntries(
+                Object.entries(p.images).filter(
+                  ([k, v]) => typeof k === 'string' && typeof v === 'string' && v.startsWith('data:image/'),
+                ),
+              )
+            : {}
         const folders = Array.isArray(p.folders)
           ? [...new Set(p.folders.filter((f): f is string => typeof f === 'string' && !!f.trim()))]
           : []
@@ -1065,6 +1103,7 @@ export const useActions = create<ActionState>()(
           focusItems: Array.isArray(p.focusItems) ? p.focusItems : [],
           collapsed,
           folders,
+          images,
           activeBoardId:
             boards.find((b) => b.id === p.activeBoardId)?.id ?? boards[0]?.id ?? null,
           // 撤销栈不落盘：恢复上一次的删除快照会跨刷新出错

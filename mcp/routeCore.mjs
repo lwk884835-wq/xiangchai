@@ -27,7 +27,7 @@ const fid = () => `fi-${Math.random().toString(36).slice(2, 10)}`
 
 export function load() {
   if (!existsSync(dataFile)) {
-    return { version: 1, updatedAt: 0, boards: [], focusItems: [], collapsed: {}, folders: [], activeBoardId: null }
+    return { version: 1, updatedAt: 0, boards: [], focusItems: [], collapsed: {}, folders: [], images: {}, activeBoardId: null }
   }
   const data = JSON.parse(readFileSync(dataFile, 'utf8'))
   return {
@@ -37,6 +37,7 @@ export function load() {
     focusItems: Array.isArray(data.focusItems) ? data.focusItems : [],
     collapsed: data.collapsed && typeof data.collapsed === 'object' ? data.collapsed : {},
     folders: Array.isArray(data.folders) ? data.folders : [],
+    images: data.images && typeof data.images === 'object' ? data.images : {},
     activeBoardId: data.activeBoardId ?? null,
   }
 }
@@ -114,6 +115,8 @@ const relevel = (nodes, rootId, level) => {
   }
 }
 
+const plainRich = (value) => String(value ?? '').replace(/\[\[img:[A-Za-z0-9_-]+\]\]/g, '〔图片〕')
+
 export function graphText(board, maxDepth = 6) {
   if (!board) return ''
   const nodes = board.nodes
@@ -128,7 +131,7 @@ export function graphText(board, maxDepth = 6) {
     lines.push(`${pad}- ${drop}${pin}${done}${tag}${n.title}`)
     const block = (label, value) => {
       if (!value) return
-      const text = String(value).trim()
+      const text = plainRich(value).trim()
       if (!text) return
       const parts = text.split(/\r?\n/)
       lines.push(`${pad}  · ${label ? label + '：' : ''}${parts[0]}`)
@@ -170,9 +173,9 @@ export function readRoute(state, { board: boardKey, node: nodeKey } = {}) {
       board: board.jobTitle,
       node: node.title,
       level: node.level,
-      purpose: node.purpose ?? '',
-      detail: node.detail ?? '',
-      notes: node.notes ?? '',
+      purpose: plainRich(node.purpose ?? ''),
+      detail: plainRich(node.detail ?? ''),
+      notes: plainRich(node.notes ?? ''),
       dropped: node.dropped === true,
       dropRoot: node.dropRoot === true,
       parent: parent?.title ?? null,

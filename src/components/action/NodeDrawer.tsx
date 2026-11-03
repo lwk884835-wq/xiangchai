@@ -7,6 +7,7 @@ import { useUi } from '@/store/ui'
 /** 稳定的空数组：selector 里返回新数组会导致无限重渲染 */
 const EMPTY_IDS: string[] = []
 import { cn } from '@/lib/cn'
+import { RichField } from './RichField'
 
 /**
  * 节点详情抽屉：具体行动内容（非概括）、目的、子任务、依赖
@@ -612,56 +613,59 @@ export function NodeDrawer({
 
           <div>
             <label className="label">行动目标和目的</label>
-            <textarea
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              onBlur={() => updateNode(node.id, { purpose })}
-              rows={2}
-              placeholder="这一块是为了什么"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault()
-                  commitEdits()
-                }
-              }}
-              className="field mt-1 resize-none text-[12px] leading-[18px]"
-            />
+            <div className="mt-1">
+              <RichField
+                value={purpose}
+                onChange={setPurpose}
+                onBlur={() => updateNode(node.id, { purpose })}
+                placeholder="这一块是为了什么（可以插图）"
+                minHeight={58}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    commitEdits()
+                  }
+                }}
+              />
+            </div>
           </div>
 
           <div>
             <label className="label">具体怎么做</label>
-            <textarea
-              value={detail}
-              onChange={(e) => setDetail(e.target.value)}
-              onBlur={() => updateNode(node.id, { detail })}
-              rows={5}
-              placeholder="具体动作、交付物、验收标准"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault()
-                  commitEdits()
-                }
-              }}
-              className="field mt-1 resize-none text-[12px] leading-[18px]"
-            />
+            <div className="mt-1">
+              <RichField
+                value={detail}
+                onChange={setDetail}
+                onBlur={() => updateNode(node.id, { detail })}
+                placeholder="具体动作、交付物、验收标准（可以插图）"
+                minHeight={112}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    commitEdits()
+                  }
+                }}
+              />
+            </div>
           </div>
 
           <div>
             <label className="label">其他备注</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={() => updateNode(node.id, { notes: notes.trim() })}
-              rows={3}
-              placeholder="选填：想到什么记什么，不会被当成任务执行"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault()
-                  commitEdits()
-                }
-              }}
-              className="field mt-1 resize-none text-[12px] leading-[18px]"
-            />
+            <div className="mt-1">
+              <RichField
+                value={notes}
+                onChange={setNotes}
+                onBlur={() => updateNode(node.id, { notes: notes.trim() })}
+                placeholder="选填：想到什么记什么，不会被当成任务执行（可以插图）"
+                minHeight={74}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    commitEdits()
+                  }
+                }}
+              />
+            </div>
           </div>
 
           {node.deps.length > 0 && (
@@ -830,30 +834,31 @@ export function NodeDrawer({
                 placeholder="子任务标题（回车直接添加）"
                 className="field h-8 text-[12px]"
               />
-              <input
+              <RichField
                 value={childPurpose}
-                onChange={(e) => setChildPurpose(e.target.value)}
+                onChange={setChildPurpose}
                 placeholder="目的（选填：为什么要做这个）"
+                minHeight={32}
+                className="max-h-24 px-2 py-1 text-[11.5px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
                     addChild()
                   }
                 }}
-                className="field h-8 text-[11.5px]"
               />
-              <textarea
+              <RichField
                 value={childDetail}
-                onChange={(e) => setChildDetail(e.target.value)}
-                rows={2}
+                onChange={setChildDetail}
                 placeholder="具体怎么做（选填：动作、产出物、怎么算完成）"
+                minHeight={48}
+                className="max-h-32 px-2 py-1 text-[11.5px] leading-[17px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
                     addChild()
                   }
                 }}
-                className="field resize-none text-[11.5px] leading-[17px]"
               />
               <input
                 value={childNotes}

@@ -511,3 +511,26 @@
     transform: translate(6px, -6px);
   }
 }
+
+/* 正文内嵌图片：编辑态的小胶囊 + 只读缩略图 */
+.rich-field:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-faint);
+  pointer-events: none;
+}
+.rich-img {
+  display: inline-block;
+  margin: 0 2px;
+  vertical-align: middle;
+}
+.rich-img img {
+  display: block;
+  max-height: 26px;
+  max-width: 120px;
+  border-radius: 4px;
+  border: 1px solid var(--color-line);
+  object-fit: cover;
+}
+.rich-missing {
+  color: var(--color-faint);
+}

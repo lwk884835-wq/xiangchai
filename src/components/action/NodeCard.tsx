@@ -2,6 +2,8 @@ import { memo } from 'react'
 import { Check, ChevronDown, ChevronRight, Pin } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { cn } from '@/lib/cn'
+import { useActions } from '@/store/actions'
+import { RichText } from './RichText'
 
 /**
  * 层级越深，卡片越小 —— 视觉上直接看出主次。
@@ -76,6 +78,7 @@ export const NodeCard = memo(function NodeCard({
   onContextMenu?: (id: string, e: React.MouseEvent) => void
 }) {
   const st = styleOf(node.level)
+  const images = useActions((s) => s.images)
   const dropRoot = node.dropRoot === true
   const dropped = node.dropped === true
   return (
@@ -174,7 +177,11 @@ export const NodeCard = memo(function NodeCard({
               st.sub,
             )}
           >
-            {node.purpose}
+            <RichText
+              text={node.purpose}
+              images={images}
+              imageClassName="mr-1 inline-block max-h-[52px] max-w-[96px] rounded border border-line/70 object-cover align-middle"
+            />
           </p>
         )}
       </div>

@@ -18,6 +18,7 @@ export interface RouteSnapshot {
   focusItems: FocusItem[]
   collapsed: Record<string, string[]>
   folders?: string[]
+  images?: Record<string, string>
   activeBoardId: string | null
 }
 
@@ -41,6 +42,7 @@ export function startRouteSync(): void {
       focusItems: s.focusItems,
       collapsed: s.collapsed,
       folders: s.folders,
+      images: s.images,
       activeBoardId: s.activeBoardId,
     }
   }
@@ -52,6 +54,10 @@ export function startRouteSync(): void {
       focusItems: Array.isArray(snap.focusItems) ? snap.focusItems : [],
       collapsed: snap.collapsed && typeof snap.collapsed === 'object' ? snap.collapsed : {},
       folders: Array.isArray(snap.folders) ? snap.folders : [],
+      images:
+        snap.images && typeof snap.images === 'object' && !Array.isArray(snap.images)
+          ? snap.images
+          : {},
       activeBoardId: snap.activeBoardId ?? null,
     })
     suppress--

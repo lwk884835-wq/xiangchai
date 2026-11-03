@@ -66,4 +66,5 @@ ROUTE_DATA_FILE=../data/routes.json node call.mjs list_routes
 - 只读写本地文件，不需要网络、不会外传。
 - 网页没开也能改；下次打开网页会以文件为准加载。
 - `call.mjs` 调试 CLI 默认读写开发版 `data/routes.json`；想调真实数据显式传 `ROUTE_DATA_FILE=../data/routes-stable.json`。
+- 正文里的内嵌图片在文本里是 `[[img:id]]` 占位符，图片本体存在数据文件的 `images` 里；`read_route` 会把占位符显示成「〔图片〕」，写操作不会丢掉 `images`。
 - 建议在 `mcp/` 目录外先备份数据文件（或直接用网页的「导出数据」）。
