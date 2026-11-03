@@ -316,6 +316,11 @@ export const useActions = create<ActionState>()(
                 return { ...b, nodes }
               }),
             ],
+            // 链接卡默认收起：不然「链接卡 + 展开出来的根卡」看起来像多出一张重复的卡
+            collapsed: {
+              ...st.collapsed,
+              [src.id]: [...(st.collapsed[src.id] ?? []), linkNode.id],
+            },
           }))
           return { boardId: newBoard.id, title: newBoard.jobTitle, count: newNodes.length }
         },

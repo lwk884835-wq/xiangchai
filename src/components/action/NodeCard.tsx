@@ -118,7 +118,7 @@ export const NodeCard = memo(function NodeCard({
         draggable && 'cursor-grab active:cursor-grabbing',
         dragging && 'opacity-40',
         dropTarget && 'ring-2 ring-accent ring-offset-1 ring-offset-surface',
-        linked && 'border-accent/45 ring-2 ring-accent/25',
+        linked && 'border-[2.5px] border-[#3b82f6] ring-0 shadow-[0_0_0_1px_rgba(59,130,246,0.22)]',
         flash && 'flash-hit',
       )}
     >
@@ -236,8 +236,11 @@ export const NodeCard = memo(function NodeCard({
 
       <div
         className={cn(
-          'absolute top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-          node.notes?.trim() ? 'right-7' : 'right-1',
+          'absolute right-1 flex flex-col gap-0.5 transition-opacity',
+          node.notes?.trim() ? 'top-7' : 'top-1',
+          node.pinned
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
         )}
       >
         <button

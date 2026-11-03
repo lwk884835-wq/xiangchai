@@ -57,6 +57,10 @@ function chevron(tipX: number, y: number): string {
  * 以前尖角一律贴着卡片左边缘画（x2 - 3），于是空隙全堆在左边、
  * 尖角紧贴右边，看着像被推过去了一样。居中之后左边和右边才一样宽。
  */
+function chevronLeft(tipX: number, y: number): string {
+  return `M${tipX + TIP_DEPTH},${y - TIP_HALF} L${tipX},${y} L${tipX + TIP_DEPTH},${y + TIP_HALF}`
+}
+
 function centeredTip(x1: number, x2: number): number {
   const center = (x1 + x2) / 2
   return center + TIP_DEPTH / 2
@@ -560,6 +564,12 @@ export const RouteBoard = memo(function RouteBoard({
     // 被收起节点下面的卡本来就不在 DOM 里，rectOf 取不到，自然被过滤掉。
     const visible = nodes.filter((n) => rectOf(n.id) !== null)
     const visibleIds = new Set(visible.map((n) => n.id))
+    const allRects: (CRect & { id: string })[] = visible
+      .map((n) => {
+        const r = rectOf(n.id)
+        return r ? { ...r, id: n.id } : null
+      })
+      .filter((r): r is CRect & { id: string } => !!r)
 
     /**
      * 一张卡下面可能有几条并行分支：每条分支各自走到末端。
@@ -578,6 +588,55 @@ export const RouteBoard = memo(function RouteBoard({
         tails.push(...branchTails(last))
       }
       return tails.length ? tails : [n]
+    }
+
+    type CRect = {
+      id?: string
+      left: number
+      right: number
+      top: number
+      bottom: number
+      cy: number
+    }
+    /**
+     * 多分支接下一步时选一根「不穿卡」的竖直走廊：
+     * 从所有卡片外侧的缝隙里挑一个 x，竖直段和从各末端伸过来的横线都不能压到别的卡。
+     * 实在没有就退到所有卡片最右边。
+     */
+    const pickCorridor = (tailRects: CRect[], target: CRect, all: CRect[]): number => {
+      const maxRight = Math.max(...tailRects.map((t) => t.right))
+      const yMin = Math.min(...tailRects.map((t) => t.cy), target.cy)
+      const yMax = Math.max(...tailRects.map((t) => t.cy), target.cy)
+      const candidates = new Set<number>()
+      for (const r of all) {
+        candidates.add(r.right + 10)
+        candidates.add(r.left - 10)
+      }
+      candidates.add(maxRight + 12)
+      candidates.add(target.left - 12)
+      candidates.add(target.right + 12)
+      const sorted = [...candidates].sort((a, b) => a - b)
+      const intersectsY = (r: CRect) => r.top - 4 < yMax + 4 && r.bottom + 4 > yMin - 4
+      for (const x of sorted) {
+        if (x <= maxRight + 2) continue
+        if (x > target.left - 3 && x < target.right + 3) continue // 走廊不能落在目标卡里面
+        // 竖直段
+        if (all.some((r) => intersectsY(r) && x > r.left - 4 && x < r.right + 4)) continue
+        // 末端到走廊的横线
+        const hBlocked = tailRects.some((t) =>
+          all.some(
+            (r) =>
+              !(r.id && t.id && r.id === t.id) &&
+              t.cy > r.top - 4 &&
+              t.cy < r.bottom + 4 &&
+              x > r.left - 4 &&
+              r.right + 4 > t.right,
+          ),
+        )
+        if (hBlocked) continue
+        return x
+      }
+      return Math.max(...all.map((r) => r.right), maxRight) + 14
     }
 
     // 顶层目标之间的连接，三种情况：
@@ -625,9 +684,12 @@ export const RouteBoard = memo(function RouteBoard({
       */
       const foldedWithKids =
         collapsed.includes(prevRoot.id) && nodes.some((n) => n.parentId === prevRoot.id)
-      const tails = branchTails(prevRoot)
-        .map((t) => rectOf(t.id))
-        .filter((r): r is NonNullable<ReturnType<typeof rectOf>> => !!r)
+      const tails: (CRect & { id: string })[] = branchTails(prevRoot)
+        .map((t) => {
+          const r = rectOf(t.id)
+          return r ? { ...r, id: t.id } : null
+        })
+        .filter((r): r is CRect & { id: string } => !!r)
       const hasDeep = tails.some((r) => r !== null) && tails.length > 0 &&
         !(tails.length === 1 && tails[0].left === a.left) &&
         (tailNode.id !== prevRoot.id || foldedWithKids)
@@ -636,12 +698,17 @@ export const RouteBoard = memo(function RouteBoard({
         // 多条分支汇进同一张卡：共用一根竖线（总线），最后只留一个箭头。
         // 总线放在下一张卡左边；已经在下一张卡右边/下面的末端不再硬连，
         // 否则线会穿过卡片、绕回来，越看越乱。
-        const busX = b.left - 12
-        const usable = tails.filter((t) => t.right < busX - 2)
-        for (const t of usable) {
-          out.push(...elbow(t.right, t.cy, b.left, b.cy, busX))
+        const busX = pickCorridor(tails, b, allRects)
+        const enterRight = busX > b.right
+        const entryX = enterRight ? b.right : b.left
+        for (const t of tails) {
+          if (enterRight ? t.right > busX - 2 : t.right > busX - 2) continue
+          out.push(...elbow(t.right, t.cy, entryX, b.cy, busX))
         }
-        if (usable.length) out.push({ d: chevron(centeredTip(busX, b.left), b.cy), tone: 'tip' })
+        out.push({
+          d: enterRight ? chevronLeft(b.right, b.cy) : chevron(centeredTip(busX, b.left), b.cy),
+          tone: 'tip',
+        })
         continue
       }
 
@@ -687,21 +754,29 @@ export const RouteBoard = memo(function RouteBoard({
           const b = rectOf(g[i].id)
           if (!a || !b) continue
           const prevNode = g[i - 1]
-          const tails = branchTails(prevNode)
-            .map((t) => rectOf(t.id))
-            .filter((r): r is NonNullable<ReturnType<typeof rectOf>> => !!r)
+          const tails: (CRect & { id: string })[] = branchTails(prevNode)
+            .map((t) => {
+              const r = rectOf(t.id)
+              return r ? { ...r, id: t.id } : null
+            })
+            .filter((r): r is CRect & { id: string } => !!r)
           const deep = tails.length > 0 && tails.some((t) => t.left !== a.left)
           if (deep) {
             /*
               上一张卡有展开的子树：它下面每条并行分支的末端都要接到下一步。
               多条线共用一个竖直总线，最后只留一个箭头（各自一条竖线会看成乱麻）。
             */
-            const busX = b.left - 12
-            const usable = tails.filter((t) => t.right < busX - 2)
-            for (const t of usable) {
-              out.push(...elbow(t.right, t.cy, b.left, b.cy, busX))
+            const busX = pickCorridor(tails, b, allRects)
+            const enterRight = busX > b.right
+            const entryX = enterRight ? b.right : b.left
+            for (const t of tails) {
+              if (t.right > busX - 2) continue
+              out.push(...elbow(t.right, t.cy, entryX, b.cy, busX))
             }
-            if (usable.length) out.push({ d: chevron(centeredTip(busX, b.left), b.cy), tone: 'tip' })
+            out.push({
+              d: enterRight ? chevronLeft(b.right, b.cy) : chevron(centeredTip(busX, b.left), b.cy),
+              tone: 'tip',
+            })
             continue
           }
           // 真正相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，
