@@ -285,7 +285,8 @@ export const useActions = create<ActionState>()(
             archived: false,
             nodes: newNodes,
           }
-          // 原位置不放空：留一张链接卡，点它能跳回这条独立出来的路线
+          // 原位置只留一个「链接锚点」：它自己不渲染，被链接路线的根卡会直接显示在原位
+          // （看起来就是普通粘贴过来的卡片，蓝色描边表示是链接的；改动写回新路线）
           const atIndex = src.nodes.findIndex((n) => n.id === node.id)
           const beforeCount = src.nodes
             .slice(0, Math.max(0, atIndex))
@@ -316,11 +317,6 @@ export const useActions = create<ActionState>()(
                 return { ...b, nodes }
               }),
             ],
-            // 链接卡默认收起：不然「链接卡 + 展开出来的根卡」看起来像多出一张重复的卡
-            collapsed: {
-              ...st.collapsed,
-              [src.id]: [...(st.collapsed[src.id] ?? []), linkNode.id],
-            },
           }))
           return { boardId: newBoard.id, title: newBoard.jobTitle, count: newNodes.length }
         },

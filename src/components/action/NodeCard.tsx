@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, MessageSquareText, Pin } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { cn } from '@/lib/cn'
@@ -57,7 +57,6 @@ export const NodeCard = memo(function NodeCard({
   onDrop,
   onContextMenu,
   linked,
-  linkTitle,
   flash,
 }: {
   node: ActionNode
@@ -81,8 +80,6 @@ export const NodeCard = memo(function NodeCard({
   onContextMenu?: (id: string, e: React.MouseEvent) => void
   /** 从别的路线链接进来的（或链接展开出来的卡片）：蓝色描边 */
   linked?: boolean
-  /** 链接卡的来源路线名 */
-  linkTitle?: string
   /** 面板内搜索命中：闪一下 */
   flash?: boolean
 }) {
@@ -91,8 +88,23 @@ export const NodeCard = memo(function NodeCard({
   const dropRoot = node.dropRoot === true
   const dropped = node.dropped === true
   const hasNotes = !!node.notes?.trim()
-  /** 只有一行文字的卡片：两个图标横排在右上角居中，不往下叠 */
-  const singleLine = !node.purpose && node.title.trim().length <= 10
+  const titleRef = useRef<HTMLDivElement>(null)
+  /** 图标排法：单行横排；会换行的卡用竖排 + 文字环绕，右侧空间不浪费 */
+  const [iconLayout, setIconLayout] = useState<'h' | 'v'>('h')
+  useLayoutEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    const cs = getComputedStyle(el)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+    const textWidth = ctx.measureText(node.title).width
+    const reserved = hasNotes ? 44 : 24
+    const available = Math.max(60, el.clientWidth)
+    const lines = Math.ceil((textWidth + 6) / Math.max(30, available - reserved))
+    setIconLayout(lines <= 1 ? 'h' : 'v')
+  }, [node.title, hasNotes])
   return (
     <div
       data-node-id={node.id}
@@ -142,7 +154,7 @@ export const NodeCard = memo(function NodeCard({
           childCount > 0 && 'pb-[11px]',
         )}
       >
-        <div className={cn('flex items-start gap-1.5', singleLine ? 'pr-8' : 'pr-6')}>
+        <div className="flex items-start gap-1.5">
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -162,31 +174,63 @@ export const NodeCard = memo(function NodeCard({
           >
             {(node.done || dropped) && <Check size={10} strokeWidth={3} />}
           </button>
-          <span
-            className={cn(
-              'min-w-0 flex-1 leading-snug font-semibold',
-              st.title,
-              dropRoot
-                ? 'text-danger line-through decoration-danger/50'
-                : dropped
-                  ? 'text-faint line-through decoration-line-2'
-                  : node.done
+          <div ref={titleRef} className="min-w-0 flex-1">
+            <span
+              className={cn(
+                'float-right ml-1.5 flex gap-1',
+                iconLayout === 'h' ? 'flex-row items-center' : 'flex-col items-center gap-0.5',
+              )}
+            >
+              {hasNotes && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen(node.id)
+                  }}
+                  title="这条有批注（点开看）"
+                  aria-label="有批注"
+                  className="flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
+                >
+                  <MessageSquareText size={11} strokeWidth={1.9} />
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPin(node.id, !node.pinned)
+                }}
+                title={node.pinned ? '从重点里拿掉（连同三层内的子任务）' : '定到重点（连同三层内的子任务）'}
+                className={cn(
+                  'flex h-[20px] w-[20px] items-center justify-center text-faint transition-opacity hover:text-ink',
+                  node.pinned
+                    ? 'text-accent opacity-100'
+                    : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+                )}
+              >
+                <Pin size={11} strokeWidth={1.9} />
+              </button>
+            </span>
+            <span
+              className={cn(
+                'leading-snug font-semibold',
+                st.title,
+                dropRoot
+                  ? 'text-danger line-through decoration-danger/50'
+                  : dropped
                     ? 'text-faint line-through decoration-line-2'
-                    : 'text-ink',
-            )}
-          >
-            {node.title}
-            {dropRoot && (
-              <span className="ml-1.5 inline-block shrink-0 rounded-[4px] bg-danger-soft px-1 py-[1px] align-middle text-[9px] font-normal text-danger ring-1 ring-danger/20">
-                不合适
-              </span>
-            )}
-            {linked && linkTitle && (
-              <span className="ml-1.5 inline-block shrink-0 rounded-[4px] bg-accent-soft px-1 py-[1px] align-middle text-[9px] font-normal text-accent-ink ring-1 ring-accent/20">
-                链接 · {linkTitle}
-              </span>
-            )}
-          </span>
+                    : node.done
+                      ? 'text-faint line-through decoration-line-2'
+                      : 'text-ink',
+              )}
+            >
+              {node.title}
+              {dropRoot && (
+                <span className="ml-1.5 inline-block shrink-0 rounded-[4px] bg-danger-soft px-1 py-[1px] align-middle text-[9px] font-normal text-danger ring-1 ring-danger/20">
+                  不合适
+                </span>
+              )}
+            </span>
+          </div>
         </div>
         {!compact && node.purpose && (
           <p
@@ -223,41 +267,6 @@ export const NodeCard = memo(function NodeCard({
         </button>
       )}
 
-      <div
-        className={cn(
-          'absolute right-1 z-[1] flex items-center',
-          singleLine ? 'top-1/2 -translate-y-1/2 flex-row gap-1' : 'top-1 flex-col items-end gap-0.5',
-        )}
-      >
-        {hasNotes && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpen(node.id)
-            }}
-            title="这条有批注（点开看）"
-            aria-label="有批注"
-            className="flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
-          >
-            <MessageSquareText size={11} strokeWidth={1.9} />
-          </button>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onPin(node.id, !node.pinned)
-          }}
-          title={node.pinned ? '从重点里拿掉（连同三层内的子任务）' : '定到重点（连同三层内的子任务）'}
-          className={cn(
-            'flex h-[20px] w-[20px] items-center justify-center text-faint transition-opacity hover:text-ink',
-            node.pinned
-              ? 'text-accent opacity-100'
-              : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
-          )}
-        >
-          <Pin size={11} strokeWidth={1.9} />
-        </button>
-      </div>
     </div>
   )
 })

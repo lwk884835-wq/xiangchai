@@ -105,36 +105,46 @@ export function RoutePage({
   }
 
   /*
-    链接路线 = 在当天路线里实时展开另一条路线：
-    把被链接路线的节点按原层级/串并关系投影成「虚拟节点」，渲染在链接卡下面。
-    它们不是副本：勾选/查看都走原路线，原路线改了这里立刻跟着变。
+    链接路线 = 在当天路线里实时展开另一条路线。
+    链接节点本身**不渲染**：它只当一个锚点，把被链接路线的根卡按「普通粘贴过来的卡」
+    直接投影到锚点原来的位置（蓝色描边表示是链接的），子任务照常展开、实时同步。
   */
-  const { viewNodes, linkedIds, foreignIds, linkTitles, owners } = useMemo(() => {
+  const { viewNodes, linkedIds, foreignIds, owners, foreignAnchors } = useMemo(() => {
     const views: ActionNode[] = []
     const linked = new Set<string>()
     const foreign = new Set<string>()
-    const titles = new Map<string, string>()
     const ownerMap = new Map<string, { boardId: string; origId: string }>()
+    const anchorMap = new Map<string, string>()
     if (!board) {
-      return { viewNodes: views, linkedIds: linked, foreignIds: foreign, linkTitles: titles, owners: ownerMap }
+      return {
+        viewNodes: views,
+        linkedIds: linked,
+        foreignIds: foreign,
+        owners: ownerMap,
+        foreignAnchors: anchorMap,
+      }
     }
-    for (const n of board.nodes) views.push(n)
     for (const n of board.nodes) {
-      if (!n.linkBoardId) continue
-      linked.add(n.id)
+      if (!n.linkBoardId) {
+        views.push(n)
+        ownerMap.set(n.id, { boardId: board.id, origId: n.id })
+        continue
+      }
+      // 链接锚点：不画它自己，直接把被链接路线的树投影到它的位置
       const lb = boards.find((b) => b.id === n.linkBoardId)
       if (!lb) continue
-      titles.set(n.id, lb.jobTitle)
       const roots = lb.nodes.filter((x) => !x.parentId)
       if (!roots.length) continue
-      const shift = n.level + 1 - roots[0].level
+      const delta = n.level - (roots[0]?.level ?? 1)
       const mapId = (id: string) => `lv-${n.id}-${id}`
       for (const orig of lb.nodes) {
+        const isRoot = !orig.parentId
         const clone: ActionNode = {
           ...orig,
           id: mapId(orig.id),
-          parentId: orig.parentId ? mapId(orig.parentId) : n.id,
-          level: Math.max(1, orig.level + shift),
+          parentId: isRoot ? n.parentId : mapId(orig.parentId as string),
+          level: Math.max(1, orig.level + delta),
+          branch: isRoot ? n.branch || '' : orig.branch || '',
           deps: orig.deps.map((d) => mapId(d)),
           linkBoardId: undefined,
         }
@@ -142,23 +152,26 @@ export function RoutePage({
         linked.add(clone.id)
         foreign.add(clone.id)
         ownerMap.set(clone.id, { boardId: lb.id, origId: orig.id })
+        anchorMap.set(clone.id, n.id)
       }
     }
-    return { viewNodes: views, linkedIds: linked, foreignIds: foreign, linkTitles: titles, owners: ownerMap }
+    return {
+      viewNodes: views,
+      linkedIds: linked,
+      foreignIds: foreign,
+      owners: ownerMap,
+      foreignAnchors: anchorMap,
+    }
   }, [board, boards])
 
   const searchQ = search.trim().toLowerCase()
   const matches = useMemo(() => {
     if (!searchQ) return [] as ActionNode[]
     return viewNodes.filter((n) =>
-      [n.title, n.purpose, n.detail, n.notes]
-        .join(' ')
-        .toLowerCase()
-        .includes(searchQ),
+      [n.title, n.purpose, n.detail, n.notes].join(' ').toLowerCase().includes(searchQ),
     )
   }, [searchQ, viewNodes])
 
-  // 搜索词变了就回到第一个命中，并触发一次滚动+闪烁
   useEffect(() => {
     if (!searchQ) return
     setMatchIdx(0)
@@ -357,7 +370,7 @@ export function RoutePage({
                 onAddGoal={addGoal}
                 linkedIds={linkedIds}
                 foreignIds={foreignIds}
-                linkTitles={linkTitles}
+                foreignAnchors={foreignAnchors}
                 highlight={highlight}
               />
             </div>

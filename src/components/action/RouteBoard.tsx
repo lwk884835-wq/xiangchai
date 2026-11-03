@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/EmptyState'
  */
 const EMPTY_IDS: Set<string> = new Set()
 const EMPTY_TITLES: Map<string, string> = new Map()
+const EMPTY_ANCHORS: Map<string, string> = new Map()
 
 const TRUNK = '#ddd5fb'
 const CURVE = '#b9aef5'
@@ -126,6 +127,7 @@ function Column({
   foreignIds,
   linkTitles,
   flashId,
+  foreignAnchors,
 }: {
   node: ActionNode
   nodes: ActionNode[]
@@ -142,6 +144,7 @@ function Column({
   foreignIds: Set<string>
   linkTitles: Map<string, string>
   flashId?: string | null
+  foreignAnchors: Map<string, string>
 }) {
   const isLinked = linkedIds.has(node.id)
   const isForeign = foreignIds.has(node.id)
@@ -179,7 +182,6 @@ function Column({
         onToggleCollapse={() => onToggleCollapse(node.id)}
         draggable={!isForeign}
         linked={isLinked}
-        linkTitle={linkTitles.get(node.id)}
         flash={flashId === node.id}
         dragging={dnd.dragId === node.id}
         dropTarget={dnd.dropId === node.id}
@@ -188,29 +190,18 @@ function Column({
         onDragOver={isForeign ? undefined : dnd.onDragOver}
         onDragLeave={isForeign ? undefined : dnd.onDragLeave}
         onDrop={isForeign ? undefined : dnd.onDrop}
-        onContextMenu={isForeign ? undefined : onCardContextMenu}
+        onContextMenu={onCardContextMenu}
       />
       {visible.length > 0 && (
         // 中屏把层间距收一收，同样的窗口能多看到一层；超宽屏再放开
         <div className="flex shrink-0 flex-col gap-5 pl-10 2xl:gap-8">
-          {groups.map((group, gi) => {
+          {groups.map((group) => {
             /*
-              只有主线那一行参与宽度计算，其它支线行宽度记 0、内容往下溢。
-
-              不然一条支线横向伸出多远，整棵子树就被撑多宽，后面那个同级目标
-              会被顶出去几百像素——可它跟支线在纵向根本碰不到，纯粹是被挤开的。
-              支线自己在下面溢出去，既不影响主线的长度，也不会压到谁身上。
+              所有并行分支都参与宽度计算：下一条「后续步骤」会自然排到整棵子树右边，
+              不再被支线溢出的卡片穿过去——卡片可以因此往右移，这比线穿卡好。
             */
-            const mainIdx = Math.max(
-              0,
-              groups.findIndex((g) => (g[0]?.branch || '') === '主线'),
-            )
-            const spill = gi !== mainIdx
             return (
-              <div
-                key={group[0]?.id ?? 'g'}
-                className={spill ? 'flex w-0 items-start' : 'flex items-start'}
-              >
+              <div key={group[0]?.id ?? 'g'} className="flex items-start">
                 {group.map((kid, i) => (
                   <Fragment key={kid.id}>
                     {i > 0 && <span className="w-[18px] shrink-0" />}
@@ -228,6 +219,7 @@ function Column({
                       foreignIds={foreignIds}
                       linkTitles={linkTitles}
                       flashId={flashId}
+                      foreignAnchors={foreignAnchors}
                     />
                   </Fragment>
                 ))}
@@ -251,6 +243,7 @@ export const RouteBoard = memo(function RouteBoard({
   linkedIds,
   foreignIds,
   linkTitles,
+  foreignAnchors,
   highlight,
 }: {
   nodes: ActionNode[]
@@ -264,6 +257,8 @@ export const RouteBoard = memo(function RouteBoard({
   linkedIds?: Set<string>
   foreignIds?: Set<string>
   linkTitles?: Map<string, string>
+  /** 投影卡 id → 源路线里的链接锚点 id（用于「移除链接分支」） */
+  foreignAnchors?: Map<string, string>
   /** 面板内搜索：滚到这张卡并闪一下 */
   highlight?: { id: string; nonce: number }
 }) {
@@ -271,6 +266,7 @@ export const RouteBoard = memo(function RouteBoard({
   const copyNodes = useActions((s) => s.copyNodes)
   const pasteNodes = useActions((s) => s.pasteNodes)
   const deleteNode = useActions((s) => s.deleteNode)
+  const removeNode = useActions((s) => s.removeNode)
   const clearDoneChildren = useActions((s) => s.clearDoneChildren)
   const markUnsuitable = useActions((s) => s.markUnsuitable)
   const unmarkUnsuitable = useActions((s) => s.unmarkUnsuitable)
@@ -294,6 +290,7 @@ export const RouteBoard = memo(function RouteBoard({
   const linkedSet = linkedIds ?? EMPTY_IDS
   const foreignSet = foreignIds ?? EMPTY_IDS
   const titleMap = linkTitles ?? EMPTY_TITLES
+  const anchorMap = foreignAnchors ?? EMPTY_ANCHORS
   /** 右键菜单：nodeId 为空 = 点在空白画布上 */
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
   /** 菜单实际尺寸量出来后，再夹进视口，避免贴边时弹到屏幕外 */
@@ -741,6 +738,7 @@ export const RouteBoard = memo(function RouteBoard({
   const ctxMenuView = ctxMenu
     ? (() => {
         const target = ctxMenu.nodeId ? nodes.find((n) => n.id === ctxMenu.nodeId) : null
+        const linkAnchorId = target ? anchorMap.get(target.id) : undefined
         const hasDoneDesc = (() => {
           if (!target) return false
           const stack = [target.id]
@@ -774,7 +772,32 @@ export const RouteBoard = memo(function RouteBoard({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {target ? (
+              {target && linkAnchorId ? (
+                <>
+                  <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">
+                    {target.title}
+                  </div>
+                  <button
+                    onClick={() => {
+                      removeNode(linkAnchorId)
+                      toast('已移除这条链接分支')
+                      setCtxMenu(null)
+                    }}
+                    className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Trash2 size={12} className="mt-[3px] shrink-0" />
+                    <span>
+                      移除这条链接分支
+                      <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                        只解除链接，不动原路线
+                      </span>
+                    </span>
+                  </button>
+                  <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
+                    点卡片可以跳到原路线里改
+                  </p>
+                </>
+              ) : target ? (
                 <>
                   <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">
                     {target.title}
@@ -1062,6 +1085,7 @@ export const RouteBoard = memo(function RouteBoard({
                   foreignIds={foreignSet}
                   linkTitles={titleMap}
                   flashId={flashId}
+                  foreignAnchors={anchorMap}
                 />
               </Fragment>
             ))}
