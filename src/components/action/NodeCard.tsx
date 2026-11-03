@@ -90,6 +90,9 @@ export const NodeCard = memo(function NodeCard({
   const images = useActions((s) => s.images)
   const dropRoot = node.dropRoot === true
   const dropped = node.dropped === true
+  const hasNotes = !!node.notes?.trim()
+  /** 只有一行文字的卡片：两个图标横排在右上角居中，不往下叠 */
+  const singleLine = !node.purpose && node.title.trim().length <= 10
   return (
     <div
       data-node-id={node.id}
@@ -139,7 +142,7 @@ export const NodeCard = memo(function NodeCard({
           childCount > 0 && 'pb-[11px]',
         )}
       >
-        <div className="flex items-start gap-1.5 pr-5">
+        <div className={cn('flex items-start gap-1.5', singleLine ? 'pr-8' : 'pr-6')}>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -220,29 +223,25 @@ export const NodeCard = memo(function NodeCard({
         </button>
       )}
 
-      {node.notes?.trim() ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpen(node.id)
-          }}
-          title="这条有批注（点开看）"
-          aria-label="有批注"
-          className="absolute top-1 right-1 z-[1] flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
-        >
-          <MessageSquareText size={11} strokeWidth={1.9} />
-        </button>
-      ) : null}
-
       <div
         className={cn(
-          'absolute right-1 flex flex-col gap-0.5 transition-opacity',
-          node.notes?.trim() ? 'top-7' : 'top-1',
-          node.pinned
-            ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+          'absolute right-1 z-[1] flex items-center',
+          singleLine ? 'top-1/2 -translate-y-1/2 flex-row gap-1' : 'top-1 flex-col items-end gap-0.5',
         )}
       >
+        {hasNotes && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpen(node.id)
+            }}
+            title="这条有批注（点开看）"
+            aria-label="有批注"
+            className="flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
+          >
+            <MessageSquareText size={11} strokeWidth={1.9} />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -250,8 +249,10 @@ export const NodeCard = memo(function NodeCard({
           }}
           title={node.pinned ? '从重点里拿掉（连同三层内的子任务）' : '定到重点（连同三层内的子任务）'}
           className={cn(
-            'flex h-[20px] w-[20px] items-center justify-center text-faint transition-colors hover:text-ink',
-            node.pinned && 'text-accent opacity-100',
+            'flex h-[20px] w-[20px] items-center justify-center text-faint transition-opacity hover:text-ink',
+            node.pinned
+              ? 'text-accent opacity-100'
+              : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
           )}
         >
           <Pin size={11} strokeWidth={1.9} />
