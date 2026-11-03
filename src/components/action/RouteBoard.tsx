@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Ban, CheckCheck, ChevronRight, ClipboardPaste, Copy, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
+import { Ban, CheckCheck, ClipboardPaste, Copy, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -125,6 +125,7 @@ function Column({
   linkedIds,
   foreignIds,
   linkTitles,
+  flashId,
 }: {
   node: ActionNode
   nodes: ActionNode[]
@@ -140,6 +141,7 @@ function Column({
   /** 不属于当前路线的卡片：只读展示，禁止拖拽/右键改 */
   foreignIds: Set<string>
   linkTitles: Map<string, string>
+  flashId?: string | null
 }) {
   const isLinked = linkedIds.has(node.id)
   const isForeign = foreignIds.has(node.id)
@@ -178,6 +180,7 @@ function Column({
         draggable={!isForeign}
         linked={isLinked}
         linkTitle={linkTitles.get(node.id)}
+        flash={flashId === node.id}
         dragging={dnd.dragId === node.id}
         dropTarget={dnd.dropId === node.id}
         onDragStart={isForeign ? undefined : dnd.onDragStart}
@@ -224,6 +227,7 @@ function Column({
                       linkedIds={linkedIds}
                       foreignIds={foreignIds}
                       linkTitles={linkTitles}
+                      flashId={flashId}
                     />
                   </Fragment>
                 ))}
@@ -247,6 +251,7 @@ export const RouteBoard = memo(function RouteBoard({
   linkedIds,
   foreignIds,
   linkTitles,
+  highlight,
 }: {
   nodes: ActionNode[]
   collapsed: string[]
@@ -259,6 +264,8 @@ export const RouteBoard = memo(function RouteBoard({
   linkedIds?: Set<string>
   foreignIds?: Set<string>
   linkTitles?: Map<string, string>
+  /** 面板内搜索：滚到这张卡并闪一下 */
+  highlight?: { id: string; nonce: number }
 }) {
   const moveSubtree = useActions((s) => s.moveSubtree)
   const copyNodes = useActions((s) => s.copyNodes)
@@ -269,6 +276,18 @@ export const RouteBoard = memo(function RouteBoard({
   const unmarkUnsuitable = useActions((s) => s.unmarkUnsuitable)
   const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
+  const [flashId, setFlashId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!highlight?.id) return
+    const id = highlight.id
+    setFlashId(id)
+    const container = boardAreaRef.current
+    const el = container?.querySelector(`[data-node-id="${id}"]`) as HTMLElement | null
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    const t = setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1800)
+    return () => clearTimeout(t)
+  }, [highlight?.id, highlight?.nonce])
+
   const linkedSet = linkedIds ?? EMPTY_IDS
   const foreignSet = foreignIds ?? EMPTY_IDS
   const titleMap = linkTitles ?? EMPTY_TITLES
@@ -972,6 +991,7 @@ export const RouteBoard = memo(function RouteBoard({
                   linkedIds={linkedSet}
                   foreignIds={foreignSet}
                   linkTitles={titleMap}
+                  flashId={flashId}
                 />
               </Fragment>
             ))}
@@ -983,19 +1003,6 @@ export const RouteBoard = memo(function RouteBoard({
       )}
       {edges.right && (
         <div className="pointer-events-none absolute top-0 right-0 bottom-2 w-10 bg-gradient-to-l from-surface to-transparent" />
-      )}
-      {edges.right && (
-        <button
-          onClick={() => {
-            const el = scrollRef.current
-            if (el) el.scrollBy({ left: Math.max(320, el.clientWidth * 0.7), behavior: 'smooth' })
-          }}
-          title="右边还有，点一下滚过去"
-          aria-label="向右滚动"
-          className="absolute top-1/2 right-1 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-[0_2px_8px_rgba(23,22,26,.12)] transition-colors hover:border-line-2 hover:text-ink"
-        >
-          <ChevronRight size={16} />
-        </button>
       )}
 
       {ctxMenuView}

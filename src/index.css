@@ -534,3 +534,14 @@
 .rich-missing {
   color: var(--color-faint);
 }
+
+/* 面板内搜索命中：卡片闪一下 */
+@keyframes flash-hit {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 108, 240, 0); }
+  12% { box-shadow: 0 0 0 5px rgba(124, 108, 240, 0.45); }
+  45% { box-shadow: 0 0 0 2px rgba(124, 108, 240, 0.28); }
+  75% { box-shadow: 0 0 0 5px rgba(124, 108, 240, 0.4); }
+}
+.flash-hit {
+  animation: flash-hit 1.7s ease-out;
+}

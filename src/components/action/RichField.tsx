@@ -162,7 +162,7 @@ export function RichField({
         onMouseUp={rememberSelection}
         onKeyUp={rememberSelection}
         className={cn(
-          'rich-field w-full resize-none overflow-y-auto rounded-[6px] border border-line bg-surface px-2.5 py-1.5 text-[12.5px] leading-[1.7] break-words whitespace-pre-wrap text-ink outline-none transition-colors focus:border-accent-line focus:ring-2 focus:ring-accent/25',
+          'rich-field w-full resize-none overflow-y-auto rounded-[6px] border border-line bg-surface px-2.5 py-[5px] text-[12.5px] leading-[18px] break-words whitespace-pre-wrap text-ink outline-none transition-colors focus:border-accent-line focus:ring-2 focus:ring-accent/25',
           className,
         )}
         style={{ minHeight }}

@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Check, ChevronDown, ChevronRight, Pin } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, MessageSquareText, Pin } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { cn } from '@/lib/cn'
 import { useActions } from '@/store/actions'
@@ -58,6 +58,7 @@ export const NodeCard = memo(function NodeCard({
   onContextMenu,
   linked,
   linkTitle,
+  flash,
 }: {
   node: ActionNode
   onOpen: (id: string) => void
@@ -82,6 +83,8 @@ export const NodeCard = memo(function NodeCard({
   linked?: boolean
   /** 链接卡的来源路线名 */
   linkTitle?: string
+  /** 面板内搜索命中：闪一下 */
+  flash?: boolean
 }) {
   const st = styleOf(node.level)
   const images = useActions((s) => s.images)
@@ -116,6 +119,7 @@ export const NodeCard = memo(function NodeCard({
         dragging && 'opacity-40',
         dropTarget && 'ring-2 ring-accent ring-offset-1 ring-offset-surface',
         linked && 'border-accent/45 ring-2 ring-accent/25',
+        flash && 'flash-hit',
       )}
     >
       <div
@@ -216,7 +220,26 @@ export const NodeCard = memo(function NodeCard({
         </button>
       )}
 
-      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      {node.notes?.trim() ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpen(node.id)
+          }}
+          title="这条有批注（点开看）"
+          aria-label="有批注"
+          className="absolute top-1 right-1 z-[1] flex h-[17px] w-[17px] items-center justify-center rounded-[5px] bg-accent-soft text-accent-ink ring-1 ring-accent/20 transition-colors hover:bg-accent-line/40"
+        >
+          <MessageSquareText size={9} strokeWidth={2.2} />
+        </button>
+      ) : null}
+
+      <div
+        className={cn(
+          'absolute top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
+          node.notes?.trim() ? 'right-6' : 'right-1',
+        )}
+      >
         <button
           onClick={(e) => {
             e.stopPropagation()

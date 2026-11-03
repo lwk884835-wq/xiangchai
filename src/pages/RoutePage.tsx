@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { Plus, Undo2 } from 'lucide-react'
+import { Plus, Search, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
@@ -46,6 +46,10 @@ export function RoutePage({
   const undo = useActions((s) => s.undo)
   const toast = useUi((s) => s.showToast)
   const [openId, setOpenId] = useState<string | null>(null)
+  /** 面板内搜索：找卡片 → 自动滚过去并闪一下 */
+  const [search, setSearch] = useState('')
+  const [matchIdx, setMatchIdx] = useState(0)
+  const [highlightNonce, setHighlightNonce] = useState(0)
 
   // 第一次进来给一份示例，避免空屏；节点 id 会变，所以要维护旧 id → 新 id 的映射
   useEffect(() => {
@@ -139,6 +143,36 @@ export function RoutePage({
     return { viewNodes: views, linkedIds: linked, foreignIds: foreign, linkTitles: titles, owners: ownerMap }
   }, [board, boards])
 
+  const searchQ = search.trim().toLowerCase()
+  const matches = useMemo(() => {
+    if (!searchQ) return [] as ActionNode[]
+    return viewNodes.filter((n) =>
+      [n.title, n.purpose, n.detail, n.notes]
+        .join(' ')
+        .toLowerCase()
+        .includes(searchQ),
+    )
+  }, [searchQ, viewNodes])
+
+  // 搜索词变了就回到第一个命中，并触发一次滚动+闪烁
+  useEffect(() => {
+    if (!searchQ) return
+    setMatchIdx(0)
+    if (matches.length) setHighlightNonce((n) => n + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQ])
+
+  const stepMatch = (dir: 1 | -1) => {
+    if (!matches.length) return
+    const next = (matchIdx + dir + matches.length) % matches.length
+    setMatchIdx(next)
+    setHighlightNonce((n) => n + 1)
+  }
+
+  const highlight = matches.length
+    ? { id: matches[Math.min(matchIdx, matches.length - 1)].id, nonce: highlightNonce }
+    : undefined
+
   const openView = (id: string) => {
     const owner = owners.get(id)
     if (owner) {
@@ -219,6 +253,30 @@ export function RoutePage({
               <span className="hidden truncate text-[12px] text-faint lg:inline">
                 勾父任务会连带勾上子任务 · 勾后面一步会连带勾上前面的
               </span>
+              <div className="relative ml-auto flex shrink-0 items-center">
+                <Search size={11} className="pointer-events-none absolute left-2 text-faint" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      stepMatch(e.shiftKey ? -1 : 1)
+                    }
+                    if (e.key === 'Escape') {
+                      setSearch('')
+                    }
+                  }}
+                  placeholder="找卡片…"
+                  title="输入关键词，回车跳到下一张（Shift+回车上一张）"
+                  className="field h-[25px] w-[132px] py-0 pr-10 pl-6 text-[11px] transition-[width] focus:w-[184px] focus:pr-10"
+                />
+                {searchQ && (
+                  <span className="pointer-events-none absolute right-2 text-[9.5px] text-faint">
+                    {matches.length ? `${Math.min(matchIdx + 1, matches.length)}/${matches.length}` : '0'}
+                  </span>
+                )}
+              </div>
               {history.length > 0 && (
                 <button
                   onClick={() => {
@@ -226,7 +284,7 @@ export function RoutePage({
                     if (label) toast(`已撤回${label}`)
                   }}
                   title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
-                  className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-[3px] text-[11px] text-muted transition-colors hover:border-line-2 hover:bg-surface-3 hover:text-ink"
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-[3px] text-[11px] text-muted transition-colors hover:border-line-2 hover:bg-surface-3 hover:text-ink"
                 >
                   <Undo2 size={11} />
                   撤回{history[0].label}
@@ -245,6 +303,7 @@ export function RoutePage({
                 linkedIds={linkedIds}
                 foreignIds={foreignIds}
                 linkTitles={linkTitles}
+                highlight={highlight}
               />
             </div>
           </section>
