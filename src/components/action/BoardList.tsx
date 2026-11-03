@@ -8,6 +8,7 @@ import {
   FolderInput,
   FolderMinus,
   FolderPlus,
+  Link,
   Link2,
   Pencil,
   PanelRightClose,
@@ -41,6 +42,7 @@ export function BoardList() {
   const removeFolder = useActions((s) => s.removeFolder)
   const setBoardFolder = useActions((s) => s.setBoardFolder)
   const linkBoardInto = useActions((s) => s.linkBoardInto)
+  const copyRouteLink = useActions((s) => s.copyRouteLink)
   const renameBoard = useActions((s) => s.renameBoard)
   const exportData = useActions((s) => s.exportData)
   const importData = useActions((s) => s.importData)
@@ -262,6 +264,20 @@ export function BoardList() {
             </button>
           )}
           <div className="flex shrink-0 flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <button
+              onClick={() => {
+                const ok = copyRouteLink(b.id)
+                toast(
+                  ok
+                    ? '已复制路线链接：去当天路线里右键卡片/空白处粘贴'
+                    : '复制失败：找不到这条路线',
+                )
+              }}
+              title="复制路线链接（可在任意卡片或空白处粘贴）"
+              className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              <Link size={11} />
+            </button>
             {b.id !== activeId && (
               <button
                 onClick={() => {

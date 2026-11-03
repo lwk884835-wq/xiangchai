@@ -68,6 +68,9 @@ export function RichField({
   const images = useActions((s) => s.images)
   const addImage = useActions((s) => s.addImage)
   const [preview, setPreview] = useState<string | null>(null)
+  /** 自己维护的撤销栈：粘贴/插图这类程序性修改不进浏览器原生历史，⌘Z 得能退 */
+  const undoRef = useRef<string[]>([])
+  const redoRef = useRef<string[]>([])
 
   // 外部值变化时同步回 DOM（正在输入时不打断光标）
   useEffect(() => {
@@ -76,6 +79,46 @@ export function RichField({
     const html = richHtml(value, images)
     if (el.innerHTML !== html) el.innerHTML = html
   }, [value, images])
+
+  const currentText = () => {
+    const el = ref.current
+    return el ? parseEditorValue(el) : value
+  }
+
+  const pushUndo = () => {
+    undoRef.current = [...undoRef.current.slice(-49), currentText()]
+    redoRef.current = []
+  }
+
+  const applyText = (text: string) => {
+    const el = ref.current
+    if (!el) return
+    el.innerHTML = richHtml(text, images)
+    // 光标放到末尾
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+    onChange(text)
+  }
+
+  const undo = () => {
+    const prev = undoRef.current.pop()
+    if (prev === undefined) return false
+    redoRef.current = [...redoRef.current.slice(-49), currentText()]
+    applyText(prev)
+    return true
+  }
+
+  const redo = () => {
+    const next = redoRef.current.pop()
+    if (next === undefined) return false
+    undoRef.current = [...undoRef.current.slice(-49), currentText()]
+    applyText(next)
+    return true
+  }
 
   const emit = () => {
     const el = ref.current
@@ -93,6 +136,7 @@ export function RichField({
   const insertImage = (url: string) => {
     const el = ref.current
     if (!el) return
+    pushUndo()
     const id = `img-${Math.random().toString(36).slice(2, 10)}`
     addImage(id, url)
     el.focus()
@@ -155,7 +199,25 @@ export function RichField({
           emit()
           onBlur?.()
         }}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => {
+          const mod = e.metaKey || e.ctrlKey
+          if (mod && e.key.toLowerCase() === 'z') {
+            const ok = e.shiftKey ? redo() : undo()
+            if (ok) {
+              e.preventDefault()
+              e.stopPropagation()
+            }
+            return
+          }
+          if (mod && e.key.toLowerCase() === 'y') {
+            if (redo()) {
+              e.preventDefault()
+              e.stopPropagation()
+            }
+            return
+          }
+          onKeyDown?.(e)
+        }}
         onInput={emit}
         onMouseDown={(e) => {
           const img = (e.target as HTMLElement).closest('span.rich-img img') as HTMLImageElement | null
@@ -183,6 +245,7 @@ export function RichField({
           if (!text) return
           e.preventDefault()
           if (ref.current) {
+            pushUndo()
             insertPlainText(ref.current, text)
             emit()
           }

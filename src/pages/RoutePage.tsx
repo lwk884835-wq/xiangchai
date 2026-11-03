@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { ChevronDown, ChevronUp, Plus, Search, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Redo2, Search, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
@@ -44,6 +44,8 @@ export function RoutePage({
   const toggleCollapse = useActions((s) => s.toggleCollapse)
   const history = useActions((s) => s.history)
   const undo = useActions((s) => s.undo)
+  const redoHistory = useActions((s) => s.redoHistory)
+  const redo = useActions((s) => s.redo)
   const toast = useUi((s) => s.showToast)
   const [openId, setOpenId] = useState<string | null>(null)
   /** 面板内搜索：找卡片 → 自动滚过去并闪一下 */
@@ -51,6 +53,7 @@ export function RoutePage({
   const [matchIdx, setMatchIdx] = useState(0)
   const [highlightNonce, setHighlightNonce] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
+  const focusWrapRef = useRef<HTMLDivElement>(null)
 
   // 第一次进来给一份示例，避免空屏；节点 id 会变，所以要维护旧 id → 新 id 的映射
   useEffect(() => {
@@ -187,18 +190,25 @@ export function RoutePage({
     else toggleNode(id)
   }
   const pinView = (id: string, pinned: boolean) => {
-    // 钉/取消钉会改变顶部「重点」的高度，滚动位置不补回来的话画面会跳一下
+    /*
+      钉/取消钉会改变顶部「重点」清单的高度。只恢复 scrollTop 不够——
+      清单变高以后，路线整体会被顶下去。要把「清单高度变化量」补进 scrollTop，
+      路线这一块在屏幕上才原地不动。
+    */
     const scroller = contentRef.current
-    const before = scroller?.scrollTop ?? 0
+    const beforeTop = scroller?.scrollTop ?? 0
+    const beforeH = focusWrapRef.current?.offsetHeight ?? 0
     const owner = owners.get(id)
     if (owner) pinNode(owner.origId, pinned, owner.boardId)
     else pinNode(id, pinned)
-    requestAnimationFrame(() => {
+    const fix = () => {
       if (!scroller) return
-      scroller.scrollTop = before
-      requestAnimationFrame(() => {
-        scroller.scrollTop = before
-      })
+      const afterH = focusWrapRef.current?.offsetHeight ?? beforeH
+      scroller.scrollTop = beforeTop + (afterH - beforeH)
+    }
+    requestAnimationFrame(() => {
+      fix()
+      requestAnimationFrame(fix)
     })
   }
 
@@ -257,7 +267,9 @@ export function RoutePage({
           ref={contentRef}
           className="anim-fade-in flex-1 space-y-4 overflow-y-auto px-5 py-4 xl:space-y-5 xl:px-6 xl:py-5"
         >
-          <FocusList nodes={nodes} onOpen={setOpenId} />
+          <div ref={focusWrapRef}>
+            <FocusList nodes={nodes} onOpen={setOpenId} />
+          </div>
 
           <section className="rounded-[16px] border border-line/60 bg-surface shadow-e1">
             <header className="flex items-center gap-2 border-b border-line/70 px-5 py-3.5">
@@ -265,21 +277,35 @@ export function RoutePage({
               <span className="hidden truncate text-[12px] text-faint lg:inline">
                 勾父任务会连带勾上子任务 · 勾后面一步会连带勾上前面的
               </span>
-              {history.length > 0 && (
+            </header>
+            <div className="pointer-events-none sticky top-2 z-30 flex items-center justify-between gap-2 px-3 xl:px-4">
+              <div className="pointer-events-auto flex items-center gap-1">
                 <button
                   onClick={() => {
                     const label = undo()
                     if (label) toast(`已撤回${label}`)
                   }}
+                  disabled={!history.length}
                   title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
-                  className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-[3px] text-[11px] text-muted transition-colors hover:border-line-2 hover:bg-surface-3 hover:text-ink"
+                  className="flex h-[27px] shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2.5 text-[11px] text-muted shadow-e2 backdrop-blur transition-colors hover:text-ink disabled:cursor-default disabled:opacity-35"
                 >
                   <Undo2 size={11} />
-                  撤回{history[0].label}
+                  撤回{history[0]?.label ?? ''}
                 </button>
-              )}
-            </header>
-            <div className="pointer-events-none sticky top-2 z-30 flex justify-end pr-3 xl:pr-4">
+                <button
+                  onClick={() => {
+                    const label = redo()
+                    if (label) toast(`已回到${label}`)
+                  }}
+                  disabled={!redoHistory.length}
+                  title="回到下一步（撤销多了可以救回来）"
+                  className="flex h-[27px] shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2.5 text-[11px] text-muted shadow-e2 backdrop-blur transition-colors hover:text-ink disabled:cursor-default disabled:opacity-35"
+                >
+                  <Redo2 size={11} />
+                  回到下一步{redoHistory[0] ? ` · ${redoHistory[0].label}` : ''}
+                </button>
+              </div>
+
               <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2 py-[3px] shadow-e2 backdrop-blur">
                 <Search size={12} className="shrink-0 text-faint" />
                 <input

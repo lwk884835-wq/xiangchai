@@ -102,8 +102,16 @@ interface ActionState {
   pasteNodes: (opts?: { boardId?: string; parentId?: string | null }) => number
   /** 撤销栈：勾选 / 删除 / 拖拽前各存一份整路线快照，删错了能整体退回去 */
   history: { label: string; boards: ActionBoard[]; activeBoardId: string | null }[]
+  /** 重做栈：撤销之后还能「回到下一步」 */
+  redoHistory: { label: string; boards: ActionBoard[]; activeBoardId: string | null }[]
+  /** 复制到的路线链接（粘贴到任意卡片/空白处用） */
+  linkClipboard: { boardId: string; title: string } | null
+  copyRouteLink: (boardId: string) => boolean
+  pasteRouteLink: (opts?: { boardId?: string; parentId?: string | null }) => string
   /** 撤回上一步，返回那一步的名字（勾选/删除/拖拽…）；没有可撤回的返回 null */
   undo: () => string | null
+  /** 回到下一步（重做），返回那一步的名字 */
+  redo: () => string | null
   pinNode: (id: string, pinned: boolean, boardId?: string) => void
   removeNode: (id: string, boardId?: string) => void
   moveNode: (id: string, dir: -1 | 1, boardId?: string) => void
@@ -170,6 +178,7 @@ export const useActions = create<ActionState>()(
             { label, boards: cloneBoards(s.boards), activeBoardId: s.activeBoardId },
             ...s.history,
           ].slice(0, 30),
+          redoHistory: [],
         }))
 
       return {
@@ -180,7 +189,9 @@ export const useActions = create<ActionState>()(
         folders: [],
         images: {},
         history: [],
+        redoHistory: [],
         clipboard: null,
+        linkClipboard: null,
 
         addImage: (id, dataUrl) =>
           set((s) => ({ images: { ...s.images, [id]: dataUrl } })),
@@ -274,12 +285,83 @@ export const useActions = create<ActionState>()(
             archived: false,
             nodes: newNodes,
           }
+          // 原位置不放空：留一张链接卡，点它能跳回这条独立出来的路线
+          const atIndex = src.nodes.findIndex((n) => n.id === node.id)
+          const beforeCount = src.nodes
+            .slice(0, Math.max(0, atIndex))
+            .filter((n) => !moving.has(n.id)).length
+          const linkNode: ActionNode = {
+            id: `an-${uid()}`,
+            title: node.title,
+            purpose: '',
+            detail: '',
+            notes: '',
+            level: node.level,
+            parentId: node.parentId,
+            branch: node.branch || '',
+            deps: (node.deps ?? []).filter((d) => !moving.has(d)),
+            parallel: node.parallel,
+            done: false,
+            pinned: false,
+            linkBoardId: newBoard.id,
+            createdAt: Date.now(),
+          }
           set((st) => ({
-            boards: [newBoard, ...st.boards.map((b) =>
-              b.id === src.id ? { ...b, nodes: b.nodes.filter((n) => !moving.has(n.id)) } : b,
-            )],
+            boards: [
+              newBoard,
+              ...st.boards.map((b) => {
+                if (b.id !== src.id) return b
+                const nodes = b.nodes.filter((n) => !moving.has(n.id))
+                nodes.splice(beforeCount, 0, linkNode)
+                return { ...b, nodes }
+              }),
+            ],
           }))
           return { boardId: newBoard.id, title: newBoard.jobTitle, count: newNodes.length }
+        },
+
+        copyRouteLink: (boardIdToLink) => {
+          const linked = get().boards.find((b) => b.id === boardIdToLink)
+          if (!linked) return false
+          set({ linkClipboard: { boardId: linked.id, title: linked.jobTitle } })
+          return true
+        },
+
+        pasteRouteLink: (opts) => {
+          const s0 = get()
+          const clip = s0.linkClipboard
+          if (!clip) return ''
+          const linked = s0.boards.find((b) => b.id === clip.boardId)
+          const target =
+            s0.boards.find((b) => b.id === (opts?.boardId ?? s0.activeBoardId)) ?? null
+          if (!linked || !target) return ''
+          const parent = opts?.parentId
+            ? (target.nodes.find((n) => n.id === opts.parentId) ?? null)
+            : null
+          const siblings = target.nodes.filter((n) => n.parentId === (parent?.id ?? null))
+          const used = new Set(siblings.map((n) => n.branch || ''))
+          let bi = 1
+          while (used.has(`并行${bi}`)) bi++
+          const node: ActionNode = {
+            id: `an-${uid()}`,
+            title: linked.jobTitle,
+            purpose: '',
+            detail: '',
+            notes: '',
+            level: parent ? parent.level + 1 : 1,
+            parentId: parent?.id ?? null,
+            branch: parent ? `并行${bi}` : '',
+            deps: [],
+            parallel: !!parent,
+            done: false,
+            pinned: false,
+            linkBoardId: linked.id,
+            createdAt: Date.now(),
+          }
+          pushHistory('粘贴链接路线')
+          /* 空白处粘贴 = 作为新的根目标；贴到卡片上 = 变成它的并行子任务 */
+          patchBoard(target.id, (b) => ({ ...b, nodes: [...b.nodes, node] }))
+          return node.id
         },
 
         linkBoardInto: (boardIdToLink, targetBoardId) => {
@@ -651,10 +733,37 @@ export const useActions = create<ActionState>()(
           if (!last) return null
           set((s) => ({
             history: s.history.slice(1),
+            redoHistory: [
+              {
+                label: last.label,
+                boards: cloneBoards(s.boards),
+                activeBoardId: s.activeBoardId,
+              },
+              ...s.redoHistory,
+            ].slice(0, 30),
             boards: last.boards,
             activeBoardId: last.activeBoardId ?? s.activeBoardId,
           }))
           return last.label
+        },
+
+        redo: () => {
+          const next = get().redoHistory[0]
+          if (!next) return null
+          set((s) => ({
+            redoHistory: s.redoHistory.slice(1),
+            history: [
+              {
+                label: next.label,
+                boards: cloneBoards(s.boards),
+                activeBoardId: s.activeBoardId,
+              },
+              ...s.history,
+            ].slice(0, 30),
+            boards: next.boards,
+            activeBoardId: next.activeBoardId ?? s.activeBoardId,
+          }))
+          return next.label
         },
 
         pinNode: (id, pinned, boardId) => {
@@ -1230,7 +1339,9 @@ export const useActions = create<ActionState>()(
             boards.find((b) => b.id === p.activeBoardId)?.id ?? boards[0]?.id ?? null,
           // 撤销栈不落盘：恢复上一次的删除快照会跨刷新出错
           history: [],
+          redoHistory: [],
           clipboard: null,
+          linkClipboard: null,
         }
       },
     },

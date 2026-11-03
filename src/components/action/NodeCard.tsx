@@ -228,7 +228,7 @@ export const NodeCard = memo(function NodeCard({
           }}
           title="这条有批注（点开看）"
           aria-label="有批注"
-          className="absolute top-1 right-1 z-[1] flex h-[16px] w-[16px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
+          className="absolute top-1 right-1 z-[1] flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
         >
           <MessageSquareText size={11} strokeWidth={1.9} />
         </button>
@@ -237,7 +237,7 @@ export const NodeCard = memo(function NodeCard({
       <div
         className={cn(
           'absolute top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-          node.notes?.trim() ? 'right-6' : 'right-1',
+          node.notes?.trim() ? 'right-7' : 'right-1',
         )}
       >
         <button

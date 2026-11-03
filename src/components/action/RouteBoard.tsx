@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
+import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, Link2, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -275,6 +275,8 @@ export const RouteBoard = memo(function RouteBoard({
   const markUnsuitable = useActions((s) => s.markUnsuitable)
   const unmarkUnsuitable = useActions((s) => s.unmarkUnsuitable)
   const extractChainToRoute = useActions((s) => s.extractChainToRoute)
+  const linkClipboard = useActions((s) => s.linkClipboard)
+  const pasteRouteLink = useActions((s) => s.pasteRouteLink)
   const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
   const [flashId, setFlashId] = useState<string | null>(null)
@@ -631,12 +633,15 @@ export const RouteBoard = memo(function RouteBoard({
         (tailNode.id !== prevRoot.id || foldedWithKids)
 
       if (hasDeep && tails.length) {
-        for (const t of tails) {
-          out.push(...elbow(t.right, t.cy, b.left, b.cy, t.right + 6))
+        // 多条分支汇进同一张卡：共用一根竖线（总线），最后只留一个箭头。
+        // 总线放在下一张卡左边；已经在下一张卡右边/下面的末端不再硬连，
+        // 否则线会穿过卡片、绕回来，越看越乱。
+        const busX = b.left - 12
+        const usable = tails.filter((t) => t.right < busX - 2)
+        for (const t of usable) {
+          out.push(...elbow(t.right, t.cy, b.left, b.cy, busX))
         }
-        // 多条线汇进同一张卡：箭头只画一枚，取最靠右那条的入口
-        const tipFrom = tails.reduce((best, cur) => (cur.right > best.right ? cur : best), tails[0])
-        out.push({ d: chevron(centeredTip(tipFrom.right, b.left), b.cy), tone: 'tip' })
+        if (usable.length) out.push({ d: chevron(centeredTip(busX, b.left), b.cy), tone: 'tip' })
         continue
       }
 
@@ -689,13 +694,14 @@ export const RouteBoard = memo(function RouteBoard({
           if (deep) {
             /*
               上一张卡有展开的子树：它下面每条并行分支的末端都要接到下一步。
-              以前只从「主线末端」画一条，支线看起来就断在原地了。
+              多条线共用一个竖直总线，最后只留一个箭头（各自一条竖线会看成乱麻）。
             */
-            for (const t of tails) {
-              out.push(...elbow(t.right, t.cy, b.left, b.cy, t.right + TRUNK_INSET))
+            const busX = b.left - 12
+            const usable = tails.filter((t) => t.right < busX - 2)
+            for (const t of usable) {
+              out.push(...elbow(t.right, t.cy, b.left, b.cy, busX))
             }
-            const tipFrom = tails.reduce((best, cur) => (cur.right > best.right ? cur : best), tails[0])
-            out.push({ d: chevron(centeredTip(tipFrom.right, b.left), b.cy), tone: 'tip' })
+            if (usable.length) out.push({ d: chevron(centeredTip(busX, b.left), b.cy), tone: 'tip' })
             continue
           }
           // 真正相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，
@@ -798,6 +804,28 @@ export const RouteBoard = memo(function RouteBoard({
                   <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
                     效果和把卡片拖到它上面一样，接在它下面单独成一条线
                   </p>
+                  {linkClipboard && (
+                    <button
+                      onClick={() => {
+                        const id = pasteRouteLink({ parentId: target.id })
+                        toast(
+                          id
+                            ? `已把「${linkClipboard.title}」的链接贴到它下面`
+                            : '粘贴失败：链接已失效',
+                        )
+                        setCtxMenu(null)
+                      }}
+                      className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                    >
+                      <Link2 size={12} className="mt-[3px] shrink-0" />
+                      <span>
+                        粘贴链接路线到它下面
+                        <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                          「{linkClipboard.title}」· 变成它的并行子任务
+                        </span>
+                      </span>
+                    </button>
+                  )}
                   <div className="my-1 h-px bg-line/70" />
                   <button
                     onClick={() => {
@@ -914,6 +942,19 @@ export const RouteBoard = memo(function RouteBoard({
                     <ClipboardPaste size={12} className="shrink-0" />
                     粘贴为新的目标
                   </button>
+                  {linkClipboard && (
+                    <button
+                      onClick={() => {
+                        pasteRouteLink({ parentId: null })
+                        toast(`已把「${linkClipboard.title}」的链接贴成新目标`)
+                        setCtxMenu(null)
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                    >
+                      <Link2 size={12} className="shrink-0" />
+                      粘贴链接为新目标
+                    </button>
+                  )}
                   <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
                     把剪贴板里的卡片放到当前路线顶层
                   </p>
