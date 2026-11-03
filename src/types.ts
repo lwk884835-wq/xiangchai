@@ -26,6 +26,8 @@ export interface ActionNode {
   dropped?: boolean
   /** 标记的源头卡片：源头用红色，被带上的子任务/后续任务用灰色 */
   dropRoot?: boolean
+  /** 链接进来的路线：这张卡代表另一条行动路线（子任务实时展开显示） */
+  linkBoardId?: string
   createdAt: number
 }
 

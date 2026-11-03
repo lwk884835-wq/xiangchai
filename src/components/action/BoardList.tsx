@@ -8,6 +8,7 @@ import {
   FolderInput,
   FolderMinus,
   FolderPlus,
+  Link2,
   Pencil,
   PanelRightClose,
   PanelRightOpen,
@@ -39,6 +40,7 @@ export function BoardList() {
   const addFolder = useActions((s) => s.addFolder)
   const removeFolder = useActions((s) => s.removeFolder)
   const setBoardFolder = useActions((s) => s.setBoardFolder)
+  const linkBoardInto = useActions((s) => s.linkBoardInto)
   const renameBoard = useActions((s) => s.renameBoard)
   const exportData = useActions((s) => s.exportData)
   const importData = useActions((s) => s.importData)
@@ -100,6 +102,7 @@ export function BoardList() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState('')
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
@@ -148,8 +151,11 @@ export function BoardList() {
     return () => window.removeEventListener('dragstart', onDragStart)
   }, [])
 
-  const live = boards.filter((b) => !b.archived)
-  const archived = boards.filter((b) => b.archived)
+  const q = query.trim()
+  const matchRoute = (b: ActionBoard) =>
+    !q || [b.jobTitle, b.label, b.jobCity].join(' ').toLowerCase().includes(q.toLowerCase())
+  const live = boards.filter((b) => !b.archived && matchRoute(b))
+  const archived = boards.filter((b) => b.archived && matchRoute(b))
   /** 收起态显示当前路线名（比「路线 N」直观） */
   const activeBoard = boards.find((b) => b.id === activeId) ?? live[0] ?? null
   const railTitle = activeBoard?.jobTitle?.trim() || '路线'
@@ -256,6 +262,22 @@ export function BoardList() {
             </button>
           )}
           <div className="flex shrink-0 flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            {b.id !== activeId && (
+              <button
+                onClick={() => {
+                  const id = linkBoardInto(b.id)
+                  toast(
+                    id
+                      ? `已把「${b.jobTitle}」插到当天路线里（蓝色描边，点卡片可跳过去改）`
+                      : '当前路线还没有目标，先加一个目标再插',
+                  )
+                }}
+                title="插入到当天路线（实时展开，改动写回原路线）"
+                className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+              >
+                <Link2 size={11} />
+              </button>
+            )}
             <button
               onClick={() => {
                 setFolderMenuBoardId(b.id)
@@ -361,6 +383,15 @@ export function BoardList() {
       </div>
 
       <div className="flex-1 space-y-1 overflow-y-auto p-1.5">
+        <div className="pb-1">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索路线…"
+            className="field h-7 px-2 text-[12px]"
+          />
+        </div>
+
         {creatingFolder && (
           <div className="flex items-center gap-1 pb-1">
             <input

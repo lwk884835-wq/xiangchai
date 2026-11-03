@@ -64,6 +64,11 @@ interface ActionState {
    */
   markUnsuitable: (id: string, boardId?: string) => number
   unmarkUnsuitable: (id: string, boardId?: string) => number
+  /**
+   * 把另一条路线作为「链接分支」插到当前路线第一个目标下面。
+   * 链接卡片的子任务实时来自原路线，改动都写回原路线。
+   */
+  linkBoardInto: (boardIdToLink: string, targetBoardId?: string) => string
 
   addBoard: (b: { jobTitle: string; jobCity?: string; label?: string; folder?: string }) => string
   setActiveBoard: (id: string) => void
@@ -194,6 +199,41 @@ export const useActions = create<ActionState>()(
           }
           if (removed) set({ images })
           return removed
+        },
+
+        linkBoardInto: (boardIdToLink, targetBoardId) => {
+          const s0 = get()
+          const linked = s0.boards.find((b) => b.id === boardIdToLink)
+          const target =
+            s0.boards.find((b) => b.id === (targetBoardId ?? s0.activeBoardId)) ?? null
+          if (!linked || !target) return ''
+          if (linked.id === target.id) return ''
+          if (target.nodes.some((n) => n.linkBoardId === linked.id)) return ''
+          const root = target.nodes.find((n) => !n.parentId)
+          if (!root) return ''
+          const used = new Set(
+            target.nodes.filter((n) => n.parentId === root.id).map((n) => n.branch || ''),
+          )
+          let bi = 1
+          while (used.has(`并行${bi}`)) bi++
+          const node: ActionNode = {
+            id: `an-${uid()}`,
+            title: linked.jobTitle,
+            purpose: '',
+            detail: '',
+            notes: '',
+            level: root.level + 1,
+            parentId: root.id,
+            branch: `并行${bi}`,
+            deps: [],
+            parallel: true,
+            done: false,
+            pinned: false,
+            linkBoardId: linked.id,
+            createdAt: Date.now(),
+          }
+          patchBoard(target.id, (b) => ({ ...b, nodes: [...b.nodes, node] }))
+          return node.id
         },
 
         addFolder: (name) => {
@@ -400,6 +440,7 @@ export const useActions = create<ActionState>()(
             parallel: input.parallel ?? false,
             done: input.done ?? false,
             pinned: input.pinned ?? false,
+            ...(input.linkBoardId ? { linkBoardId: input.linkBoardId } : {}),
             createdAt: Date.now(),
           }
           const target = boardOf(boardId)

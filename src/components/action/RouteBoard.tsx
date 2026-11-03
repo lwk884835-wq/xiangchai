@@ -22,6 +22,9 @@ import { EmptyState } from '@/components/EmptyState'
  * 三档线色，把「骨架」和「指向」分开：
  * 主干最淡（只交代归属，不该抢视线）、分叉中等、尖角最深（真正指方向的那个）
  */
+const EMPTY_IDS: Set<string> = new Set()
+const EMPTY_TITLES: Map<string, string> = new Map()
+
 const TRUNK = '#ddd5fb'
 const CURVE = '#b9aef5'
 const TIP = '#7c6cf0'
@@ -119,6 +122,9 @@ function Column({
   onToggleCollapse,
   dnd,
   onCardContextMenu,
+  linkedIds,
+  foreignIds,
+  linkTitles,
 }: {
   node: ActionNode
   nodes: ActionNode[]
@@ -129,7 +135,14 @@ function Column({
   onToggleCollapse: (id: string) => void
   dnd: Dnd
   onCardContextMenu: (id: string, e: React.MouseEvent) => void
+  /** 蓝色描边的卡片（链接进来的那一支 + 链接卡本身） */
+  linkedIds: Set<string>
+  /** 不属于当前路线的卡片：只读展示，禁止拖拽/右键改 */
+  foreignIds: Set<string>
+  linkTitles: Map<string, string>
 }) {
+  const isLinked = linkedIds.has(node.id)
+  const isForeign = foreignIds.has(node.id)
   const kids = useMemo(() => childrenOf(nodes, node.id), [nodes, node.id])
   const isCollapsed = collapsed.includes(node.id)
   const visible = isCollapsed ? [] : kids
@@ -162,15 +175,17 @@ function Column({
         collapsed={isCollapsed}
         progress={progress}
         onToggleCollapse={() => onToggleCollapse(node.id)}
-        draggable
+        draggable={!isForeign}
+        linked={isLinked}
+        linkTitle={linkTitles.get(node.id)}
         dragging={dnd.dragId === node.id}
         dropTarget={dnd.dropId === node.id}
-        onDragStart={dnd.onDragStart}
-        onDragEnd={dnd.onDragEnd}
-        onDragOver={dnd.onDragOver}
-        onDragLeave={dnd.onDragLeave}
-        onDrop={dnd.onDrop}
-        onContextMenu={onCardContextMenu}
+        onDragStart={isForeign ? undefined : dnd.onDragStart}
+        onDragEnd={isForeign ? undefined : dnd.onDragEnd}
+        onDragOver={isForeign ? undefined : dnd.onDragOver}
+        onDragLeave={isForeign ? undefined : dnd.onDragLeave}
+        onDrop={isForeign ? undefined : dnd.onDrop}
+        onContextMenu={isForeign ? undefined : onCardContextMenu}
       />
       {visible.length > 0 && (
         // 中屏把层间距收一收，同样的窗口能多看到一层；超宽屏再放开
@@ -206,6 +221,9 @@ function Column({
                       onToggleCollapse={onToggleCollapse}
                       dnd={dnd}
                       onCardContextMenu={onCardContextMenu}
+                      linkedIds={linkedIds}
+                      foreignIds={foreignIds}
+                      linkTitles={linkTitles}
                     />
                   </Fragment>
                 ))}
@@ -226,6 +244,9 @@ export const RouteBoard = memo(function RouteBoard({
   onPin,
   onToggleCollapse,
   onAddGoal,
+  linkedIds,
+  foreignIds,
+  linkTitles,
 }: {
   nodes: ActionNode[]
   collapsed: string[]
@@ -235,6 +256,9 @@ export const RouteBoard = memo(function RouteBoard({
   onToggleCollapse: (id: string) => void
   /** 空路线时给一个「加第一个目标」的入口 */
   onAddGoal?: () => void
+  linkedIds?: Set<string>
+  foreignIds?: Set<string>
+  linkTitles?: Map<string, string>
 }) {
   const moveSubtree = useActions((s) => s.moveSubtree)
   const copyNodes = useActions((s) => s.copyNodes)
@@ -245,6 +269,9 @@ export const RouteBoard = memo(function RouteBoard({
   const unmarkUnsuitable = useActions((s) => s.unmarkUnsuitable)
   const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
+  const linkedSet = linkedIds ?? EMPTY_IDS
+  const foreignSet = foreignIds ?? EMPTY_IDS
+  const titleMap = linkTitles ?? EMPTY_TITLES
   /** 右键菜单：nodeId 为空 = 点在空白画布上 */
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
   /** 菜单实际尺寸量出来后，再夹进视口，避免贴边时弹到屏幕外 */
@@ -942,6 +969,9 @@ export const RouteBoard = memo(function RouteBoard({
                   onToggleCollapse={onToggleCollapse}
                   dnd={dnd}
                   onCardContextMenu={openCtxMenu}
+                  linkedIds={linkedSet}
+                  foreignIds={foreignSet}
+                  linkTitles={titleMap}
                 />
               </Fragment>
             ))}

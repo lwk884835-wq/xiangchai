@@ -56,6 +56,8 @@ export const NodeCard = memo(function NodeCard({
   onDragLeave,
   onDrop,
   onContextMenu,
+  linked,
+  linkTitle,
 }: {
   node: ActionNode
   onOpen: (id: string) => void
@@ -76,6 +78,10 @@ export const NodeCard = memo(function NodeCard({
   onDragLeave?: (id: string, e: React.DragEvent) => void
   onDrop?: (id: string, e: React.DragEvent) => void
   onContextMenu?: (id: string, e: React.MouseEvent) => void
+  /** 从别的路线链接进来的（或链接展开出来的卡片）：蓝色描边 */
+  linked?: boolean
+  /** 链接卡的来源路线名 */
+  linkTitle?: string
 }) {
   const st = styleOf(node.level)
   const images = useActions((s) => s.images)
@@ -109,6 +115,7 @@ export const NodeCard = memo(function NodeCard({
         draggable && 'cursor-grab active:cursor-grabbing',
         dragging && 'opacity-40',
         dropTarget && 'ring-2 ring-accent ring-offset-1 ring-offset-surface',
+        linked && 'border-accent/45 ring-2 ring-accent/25',
       )}
     >
       <div
@@ -165,6 +172,11 @@ export const NodeCard = memo(function NodeCard({
             {dropRoot && (
               <span className="ml-1.5 inline-block shrink-0 rounded-[4px] bg-danger-soft px-1 py-[1px] align-middle text-[9px] font-normal text-danger ring-1 ring-danger/20">
                 不合适
+              </span>
+            )}
+            {linked && linkTitle && (
+              <span className="ml-1.5 inline-block shrink-0 rounded-[4px] bg-accent-soft px-1 py-[1px] align-middle text-[9px] font-normal text-accent-ink ring-1 ring-accent/20">
+                链接 · {linkTitle}
               </span>
             )}
           </span>

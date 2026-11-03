@@ -128,7 +128,8 @@ export function graphText(board, maxDepth = 6) {
     const done = n.done ? '✓ ' : ''
     const pin = n.pinned ? '★ ' : ''
     const drop = n.dropped ? '⊘ ' : ''
-    lines.push(`${pad}- ${drop}${pin}${done}${tag}${n.title}`)
+    const link = n.linkBoardId ? '↪ ' : ''
+    lines.push(`${pad}- ${link}${drop}${pin}${done}${tag}${n.title}`)
     const block = (label, value) => {
       if (!value) return
       const text = plainRich(value).trim()
@@ -178,6 +179,7 @@ export function readRoute(state, { board: boardKey, node: nodeKey } = {}) {
       notes: plainRich(node.notes ?? ''),
       dropped: node.dropped === true,
       dropRoot: node.dropRoot === true,
+      linkBoardId: node.linkBoardId ?? null,
       parent: parent?.title ?? null,
       prev: idx > 0 ? [chain[idx - 1].title] : [],
       next: idx < chain.length - 1 ? [chain[idx + 1].title] : [],

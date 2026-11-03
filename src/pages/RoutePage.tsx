@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ActionNode } from '@/types'
 import { Plus, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
@@ -39,6 +40,7 @@ export function RoutePage({
   const addNode = useActions((s) => s.addNode)
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
+  const setActiveBoard = useActions((s) => s.setActiveBoard)
   const toggleCollapse = useActions((s) => s.toggleCollapse)
   const history = useActions((s) => s.history)
   const undo = useActions((s) => s.undo)
@@ -92,6 +94,67 @@ export function RoutePage({
       pinned: true,
     })
     setOpenId(id)
+  }
+
+  /*
+    链接路线 = 在当天路线里实时展开另一条路线：
+    把被链接路线的节点按原层级/串并关系投影成「虚拟节点」，渲染在链接卡下面。
+    它们不是副本：勾选/查看都走原路线，原路线改了这里立刻跟着变。
+  */
+  const { viewNodes, linkedIds, foreignIds, linkTitles, owners } = useMemo(() => {
+    const views: ActionNode[] = []
+    const linked = new Set<string>()
+    const foreign = new Set<string>()
+    const titles = new Map<string, string>()
+    const ownerMap = new Map<string, { boardId: string; origId: string }>()
+    if (!board) {
+      return { viewNodes: views, linkedIds: linked, foreignIds: foreign, linkTitles: titles, owners: ownerMap }
+    }
+    for (const n of board.nodes) views.push(n)
+    for (const n of board.nodes) {
+      if (!n.linkBoardId) continue
+      linked.add(n.id)
+      const lb = boards.find((b) => b.id === n.linkBoardId)
+      if (!lb) continue
+      titles.set(n.id, lb.jobTitle)
+      const roots = lb.nodes.filter((x) => !x.parentId)
+      if (!roots.length) continue
+      const shift = n.level + 1 - roots[0].level
+      const mapId = (id: string) => `lv-${n.id}-${id}`
+      for (const orig of lb.nodes) {
+        const clone: ActionNode = {
+          ...orig,
+          id: mapId(orig.id),
+          parentId: orig.parentId ? mapId(orig.parentId) : n.id,
+          level: Math.max(1, orig.level + shift),
+          deps: orig.deps.map((d) => mapId(d)),
+          linkBoardId: undefined,
+        }
+        views.push(clone)
+        linked.add(clone.id)
+        foreign.add(clone.id)
+        ownerMap.set(clone.id, { boardId: lb.id, origId: orig.id })
+      }
+    }
+    return { viewNodes: views, linkedIds: linked, foreignIds: foreign, linkTitles: titles, owners: ownerMap }
+  }, [board, boards])
+
+  const openView = (id: string) => {
+    const owner = owners.get(id)
+    if (owner) {
+      setActiveBoard(owner.boardId)
+      setOpenId(owner.origId)
+    } else setOpenId(id)
+  }
+  const toggleView = (id: string) => {
+    const owner = owners.get(id)
+    if (owner) toggleNode(owner.origId, owner.boardId)
+    else toggleNode(id)
+  }
+  const pinView = (id: string, pinned: boolean) => {
+    const owner = owners.get(id)
+    if (owner) pinNode(owner.origId, pinned, owner.boardId)
+    else pinNode(id, pinned)
   }
 
   const subtitle = [dateLine(), board?.jobTitle ?? '', board?.jobCity ?? '', board?.label ?? '']
@@ -172,13 +235,16 @@ export function RoutePage({
             </header>
             <div className="px-3 py-3 xl:px-4 xl:py-4">
               <RouteBoard
-                nodes={nodes}
+                nodes={viewNodes}
                 collapsed={collapsed}
-                onOpen={setOpenId}
-                onToggle={toggleNode}
-                onPin={pinNode}
+                onOpen={openView}
+                onToggle={toggleView}
+                onPin={pinView}
                 onToggleCollapse={toggleCollapse}
                 onAddGoal={addGoal}
+                linkedIds={linkedIds}
+                foreignIds={foreignIds}
+                linkTitles={linkTitles}
               />
             </div>
           </section>
