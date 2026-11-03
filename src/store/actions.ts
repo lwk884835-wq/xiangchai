@@ -428,7 +428,7 @@ export const useActions = create<ActionState>()(
           /*
             清「完全做完」的并行线，而不是「只要有一个完成就整串删」。
             一条并行线（同一父级、同一 branch 的一串）只有它自己和下面所有子线
-            全部做完，才算完全做完、可以整串清掉；有没做完的就整条保留。
+            全部做完才整串清掉；只要有一个没做完，整条（含已完成的孩子）原样保留。
           */
           const kidsOf = (pid: string) => board.nodes.filter((n) => n.parentId === pid)
           const groupsOf = (pid: string) => {
@@ -450,11 +450,10 @@ export const useActions = create<ActionState>()(
           }
           const prune = (pid: string) => {
             for (const group of groupsOf(pid)) {
+              // 只有整条线（含所有子线）都做完才清；没做完的整条保留，
+              // 不往下钻、也不单独清它下面已完成的子任务
               if (groupDone(group)) {
                 for (const n of group) addSubtree(n.id)
-              } else {
-                // 整条线没做完：保留，但可以继续清它下面「完全做完」的子线
-                for (const n of group) prune(n.id)
               }
             }
           }
