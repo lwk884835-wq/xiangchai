@@ -637,9 +637,10 @@ export const RouteBoard = memo(function RouteBoard({
         const busX = b.left - 12
         const usable = tails.filter((t) => t.right < busX - 2)
         for (const t of usable) {
-          out.push(...elbow(t.right, t.cy, b.left, b.cy, busX))
+          // 横线停在小尖角的开口正中（夹角中央），箭尖再贴到卡片左边
+          out.push(...elbow(t.right, t.cy, b.left - TIP_DEPTH, b.cy, busX))
         }
-        if (usable.length) out.push({ d: chevron(centeredTip(busX, b.left), b.cy), tone: 'tip' })
+        if (usable.length) out.push({ d: chevron(b.left, b.cy), tone: 'tip' })
         continue
       }
 
@@ -674,8 +675,8 @@ export const RouteBoard = memo(function RouteBoard({
       // 视觉上还是一根主干分出几枝，但形状和「两个根目标之间」那条完全一样。
       const outX = p.right + TRUNK_INSET
       for (const h of heads) {
-        out.push(...elbow(p.right, p.cy, h.r.left, h.r.cy, outX))
-        out.push({ d: chevron(centeredTip(p.right, h.r.left), h.r.cy), tone: 'tip' })
+        out.push(...elbow(p.right, p.cy, h.r.left - TIP_DEPTH, h.r.cy, outX))
+        out.push({ d: chevron(h.r.left, h.r.cy), tone: 'tip' })
       }
 
       // 同一路线里的一串小任务之间：用 V 连接
@@ -697,9 +698,9 @@ export const RouteBoard = memo(function RouteBoard({
             const busX = b.left - 12
             const usable = tails.filter((t) => t.right < busX - 2)
             for (const t of usable) {
-              out.push(...elbow(t.right, t.cy, b.left, b.cy, busX))
+              out.push(...elbow(t.right, t.cy, b.left - TIP_DEPTH, b.cy, busX))
             }
-            if (usable.length) out.push({ d: chevron(centeredTip(busX, b.left), b.cy), tone: 'tip' })
+            if (usable.length) out.push({ d: chevron(b.left, b.cy), tone: 'tip' })
             continue
           }
           // 真正相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，

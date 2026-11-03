@@ -181,19 +181,6 @@ export const NodeCard = memo(function NodeCard({
                 iconLayout === 'h' ? 'flex-row items-center' : 'flex-col items-center gap-0.5',
               )}
             >
-              {hasNotes && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onOpen(node.id)
-                  }}
-                  title="这条有批注（点开看）"
-                  aria-label="有批注"
-                  className="flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
-                >
-                  <MessageSquareText size={11} strokeWidth={1.9} />
-                </button>
-              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -209,6 +196,19 @@ export const NodeCard = memo(function NodeCard({
               >
                 <Pin size={11} strokeWidth={1.9} />
               </button>
+              {hasNotes && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpen(node.id)
+                  }}
+                  title="这条有批注（点开看）"
+                  aria-label="有批注"
+                  className="flex h-[20px] w-[20px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
+                >
+                  <MessageSquareText size={11} strokeWidth={1.9} />
+                </button>
+              )}
             </span>
             <span
               className={cn(
