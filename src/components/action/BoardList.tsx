@@ -156,10 +156,14 @@ export function BoardList() {
   const railTitleShort = railTitle.length > 14 ? `${railTitle.slice(0, 14)}…` : railTitle
 
   const create = () => {
-    const title = draft.trim() || '新路线'
-    addBoard({ jobTitle: title, jobCity: '', label: '' })
+    const title = draft.trim()
+    addBoard({ jobTitle: title, jobCity: '', label: '', folder: '' })
     setDraft('')
-    toast(`已新建「${title}」，现在可以加第一个目标`)
+    toast(
+      title
+        ? `已新建「${title}」，现在可以加第一个目标`
+        : '已新建路线，加第一个目标后，路线名会自动跟着它',
+    )
   }
 
   const startRename = (id: string, title: string) => {

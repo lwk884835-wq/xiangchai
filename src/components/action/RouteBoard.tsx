@@ -247,12 +247,27 @@ export const RouteBoard = memo(function RouteBoard({
   const toast = useUi((s) => s.showToast)
   /** 右键菜单：nodeId 为空 = 点在空白画布上 */
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
+  /** 菜单实际尺寸量出来后，再夹进视口，避免贴边时弹到屏幕外 */
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState({ left: 0, top: 0 })
+  useLayoutEffect(() => {
+    if (!ctxMenu) return
+    const el = menuRef.current
+    const w = el?.offsetWidth ?? 238
+    const h = el?.offsetHeight ?? 320
+    const margin = 8
+    setMenuPos({
+      left: Math.max(margin, Math.min(ctxMenu.x, window.innerWidth - w - margin)),
+      top: Math.max(margin, Math.min(ctxMenu.y, window.innerHeight - h - margin)),
+    })
+  }, [ctxMenu])
   /** 键盘复制/粘贴时，光标停在哪个卡片上 */
   const hoveredRef = useRef<string | null>(null)
 
   const openCtxMenu = (nodeId: string | undefined, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setMenuPos({ left: e.clientX, top: e.clientY })
     setCtxMenu({ nodeId, x: e.clientX, y: e.clientY })
   }
 
@@ -672,10 +687,12 @@ export const RouteBoard = memo(function RouteBoard({
               }}
             />
             <div
-              className="fixed z-50 w-[238px] overflow-hidden rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3 anim-pop"
+              ref={menuRef}
+              className="anim-pop fixed z-50 w-[238px] overflow-x-hidden overflow-y-auto rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3"
               style={{
-                left: Math.min(ctxMenu.x, window.innerWidth - 254),
-                top: Math.min(ctxMenu.y, window.innerHeight - 250),
+                left: menuPos.left,
+                top: menuPos.top,
+                maxHeight: 'calc(100vh - 16px)',
               }}
               onClick={(e) => e.stopPropagation()}
             >

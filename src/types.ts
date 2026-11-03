@@ -39,6 +39,8 @@ export interface ActionBoard {
   label: string
   /** 归属文件夹（空/undefined = 未分类） */
   folder?: string
+  /** 名字还没定：新建时没起名，等第一个目标卡出现后自动跟着它改 */
+  titleAuto?: boolean
   createdAt: number
   nodes: ActionNode[]
   archived: boolean

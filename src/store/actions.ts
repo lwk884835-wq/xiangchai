@@ -24,6 +24,12 @@ export interface FocusItem {
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+/** 还没起名的路线：名字跟着第一个目标卡走；没有目标就叫「新路线」 */
+const autoTitleOf = (b: ActionBoard) => {
+  const firstRoot = b.nodes.find((n) => !n.parentId)
+  return firstRoot?.title.trim() || '新路线'
+}
+
 export type ClipboardMode = 'subtree' | 'chain'
 export interface RouteClipboard {
   mode: ClipboardMode
@@ -288,9 +294,11 @@ export const useActions = create<ActionState>()(
 
         addBoard: (b) => {
           const id = `bd-${uid()}`
+          const auto = !String(b.jobTitle ?? '').trim()
           const board: ActionBoard = {
             id,
-            jobTitle: b.jobTitle,
+            jobTitle: auto ? '新路线' : String(b.jobTitle).trim(),
+            titleAuto: auto,
             jobCity: b.jobCity ?? '',
             label: b.label ?? '',
             folder: b.folder ?? '',
@@ -326,7 +334,11 @@ export const useActions = create<ActionState>()(
 
         renameBoard: (id, patch) =>
           set((s) => ({
-            boards: s.boards.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+            boards: s.boards.map((b) =>
+              b.id === id
+                ? { ...b, ...patch, ...(patch.jobTitle != null ? { titleAuto: false } : {}) }
+                : b,
+            ),
           })),
 
         addNode: (input, boardId) => {
@@ -379,14 +391,27 @@ export const useActions = create<ActionState>()(
             return id
           }
           patchBoard(target.id, (b) => ({ ...b, nodes: insert(b.nodes) }))
+          if (target.titleAuto && node.parentId == null) {
+            patchBoard(target.id, (b) =>
+              b.titleAuto ? { ...b, jobTitle: autoTitleOf(b) } : b,
+            )
+          }
           return id
         },
 
-        updateNode: (id, patch, boardId) =>
+        updateNode: (id, patch, boardId) => {
           patchBoard(boardId, (b) => ({
             ...b,
             nodes: b.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
-          })),
+          }))
+          const board = boardOf(boardId)
+          const changed = board?.nodes.find((n) => n.id === id)
+          if (board?.titleAuto && patch.title != null && changed?.parentId == null) {
+            patchBoard(board.id, (b) =>
+              b.titleAuto ? { ...b, jobTitle: autoTitleOf(b) } : b,
+            )
+          }
+        },
 
         toggleNode: (id, boardId) => {
           const board = boardOf(boardId)
@@ -523,7 +548,12 @@ export const useActions = create<ActionState>()(
                 }
               }
             }
-            return { ...b, nodes: b.nodes.filter((n) => !drop.has(n.id)) }
+            const nodes = b.nodes.filter((n) => !drop.has(n.id))
+            return {
+              ...b,
+              nodes,
+              ...(b.titleAuto ? { jobTitle: autoTitleOf({ ...b, nodes }) } : {}),
+            }
           }),
 
         // 在同一父节点下左右移动
@@ -1014,6 +1044,7 @@ export const useActions = create<ActionState>()(
             jobCity: String(b.jobCity ?? ''),
             label: String(b.label ?? ''),
             folder: String(b.folder ?? ''),
+            titleAuto: b.titleAuto === true,
             createdAt: Number(b.createdAt ?? Date.now()),
             archived: !!b.archived,
             nodes: Array.isArray(b.nodes)
