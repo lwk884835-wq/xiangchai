@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { Plus, Search, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Search, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
@@ -50,6 +50,7 @@ export function RoutePage({
   const [search, setSearch] = useState('')
   const [matchIdx, setMatchIdx] = useState(0)
   const [highlightNonce, setHighlightNonce] = useState(0)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   // 第一次进来给一份示例，避免空屏；节点 id 会变，所以要维护旧 id → 新 id 的映射
   useEffect(() => {
@@ -186,9 +187,19 @@ export function RoutePage({
     else toggleNode(id)
   }
   const pinView = (id: string, pinned: boolean) => {
+    // 钉/取消钉会改变顶部「重点」的高度，滚动位置不补回来的话画面会跳一下
+    const scroller = contentRef.current
+    const before = scroller?.scrollTop ?? 0
     const owner = owners.get(id)
     if (owner) pinNode(owner.origId, pinned, owner.boardId)
     else pinNode(id, pinned)
+    requestAnimationFrame(() => {
+      if (!scroller) return
+      scroller.scrollTop = before
+      requestAnimationFrame(() => {
+        scroller.scrollTop = before
+      })
+    })
   }
 
   const subtitle = [dateLine(), board?.jobTitle ?? '', board?.jobCity ?? '', board?.label ?? '']
@@ -243,6 +254,7 @@ export function RoutePage({
 
         <div
           key={board?.id ?? 'empty'}
+          ref={contentRef}
           className="anim-fade-in flex-1 space-y-4 overflow-y-auto px-5 py-4 xl:space-y-5 xl:px-6 xl:py-5"
         >
           <FocusList nodes={nodes} onOpen={setOpenId} />
@@ -253,8 +265,23 @@ export function RoutePage({
               <span className="hidden truncate text-[12px] text-faint lg:inline">
                 勾父任务会连带勾上子任务 · 勾后面一步会连带勾上前面的
               </span>
-              <div className="relative ml-auto flex shrink-0 items-center">
-                <Search size={11} className="pointer-events-none absolute left-2 text-faint" />
+              {history.length > 0 && (
+                <button
+                  onClick={() => {
+                    const label = undo()
+                    if (label) toast(`已撤回${label}`)
+                  }}
+                  title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
+                  className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-[3px] text-[11px] text-muted transition-colors hover:border-line-2 hover:bg-surface-3 hover:text-ink"
+                >
+                  <Undo2 size={11} />
+                  撤回{history[0].label}
+                </button>
+              )}
+            </header>
+            <div className="pointer-events-none sticky top-2 z-30 flex justify-end pr-3 xl:pr-4">
+              <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2 py-[3px] shadow-e2 backdrop-blur">
+                <Search size={12} className="shrink-0 text-faint" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -263,34 +290,36 @@ export function RoutePage({
                       e.preventDefault()
                       stepMatch(e.shiftKey ? -1 : 1)
                     }
-                    if (e.key === 'Escape') {
-                      setSearch('')
-                    }
+                    if (e.key === 'Escape') setSearch('')
                   }}
                   placeholder="找卡片…"
                   title="输入关键词，回车跳到下一张（Shift+回车上一张）"
-                  className="field h-[25px] w-[132px] py-0 pr-10 pl-6 text-[11px] transition-[width] focus:w-[184px] focus:pr-10"
+                  className="w-[104px] bg-transparent text-[12px] text-ink outline-none transition-[width] placeholder:text-faint focus:w-[168px]"
                 />
                 {searchQ && (
-                  <span className="pointer-events-none absolute right-2 text-[9.5px] text-faint">
+                  <span className="shrink-0 text-[10px] text-faint">
                     {matches.length ? `${Math.min(matchIdx + 1, matches.length)}/${matches.length}` : '0'}
                   </span>
                 )}
-              </div>
-              {history.length > 0 && (
                 <button
-                  onClick={() => {
-                    const label = undo()
-                    if (label) toast(`已撤回${label}`)
-                  }}
-                  title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
-                  className="flex shrink-0 items-center gap-1 rounded-md border border-line px-2 py-[3px] text-[11px] text-muted transition-colors hover:border-line-2 hover:bg-surface-3 hover:text-ink"
+                  onClick={() => stepMatch(-1)}
+                  disabled={!matches.length}
+                  title="上一张（Shift+回车）"
+                  className="flex h-[20px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30"
                 >
-                  <Undo2 size={11} />
-                  撤回{history[0].label}
+                  <ChevronUp size={12} />
                 </button>
-              )}
-            </header>
+                <button
+                  onClick={() => stepMatch(1)}
+                  disabled={!matches.length}
+                  title="下一张（回车）"
+                  className="flex h-[20px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30"
+                >
+                  <ChevronDown size={12} />
+                </button>
+              </div>
+            </div>
+
             <div className="px-3 py-3 xl:px-4 xl:py-4">
               <RouteBoard
                 nodes={viewNodes}

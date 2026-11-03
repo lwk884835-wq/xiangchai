@@ -228,9 +228,9 @@ export const NodeCard = memo(function NodeCard({
           }}
           title="这条有批注（点开看）"
           aria-label="有批注"
-          className="absolute top-1 right-1 z-[1] flex h-[17px] w-[17px] items-center justify-center rounded-[5px] bg-accent-soft text-accent-ink ring-1 ring-accent/20 transition-colors hover:bg-accent-line/40"
+          className="absolute top-1 right-1 z-[1] flex h-[16px] w-[16px] items-center justify-center text-accent/75 transition-colors hover:text-accent"
         >
-          <MessageSquareText size={9} strokeWidth={2.2} />
+          <MessageSquareText size={11} strokeWidth={1.9} />
         </button>
       ) : null}
 
@@ -247,11 +247,11 @@ export const NodeCard = memo(function NodeCard({
           }}
           title={node.pinned ? '从重点里拿掉（连同三层内的子任务）' : '定到重点（连同三层内的子任务）'}
           className={cn(
-            'flex h-[22px] w-[22px] items-center justify-center rounded-md text-faint transition-colors hover:bg-surface-3',
+            'flex h-[20px] w-[20px] items-center justify-center text-faint transition-colors hover:text-ink',
             node.pinned && 'text-accent opacity-100',
           )}
         >
-          <Pin size={11} />
+          <Pin size={11} strokeWidth={1.9} />
         </button>
       </div>
     </div>

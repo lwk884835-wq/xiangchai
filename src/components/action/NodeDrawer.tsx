@@ -218,9 +218,10 @@ export function NodeDrawer({
     if (!node) return
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'v') return
-      // 焦点在输入框里时，让浏览器正常粘贴文字
-      const tag = (e.target as HTMLElement | null)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // 焦点在输入框/富文本编辑区里时，让浏览器正常粘贴文字和图片
+      const t = e.target as HTMLElement | null
+      if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable) return
+      if (t?.closest('[contenteditable="true"]')) return
       e.preventDefault()
       const n = pasteNodes({ parentId: node.id, boardId: activeBoardId ?? undefined })
       if (n) toast(`已粘贴 ${n} 张卡到「${node.title}」下面`)

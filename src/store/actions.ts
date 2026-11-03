@@ -69,6 +69,11 @@ interface ActionState {
    * 链接卡片的子任务实时来自原路线，改动都写回原路线。
    */
   linkBoardInto: (boardIdToLink: string, targetBoardId?: string) => string
+  /**
+   * 把一张卡连同它的子任务、同一串后面接的步骤一起「独立成一条新路线」，
+   * 并从当前路线移走。独立出来的路线可以再被链接插进别的每日路线。
+   */
+  extractChainToRoute: (id: string, boardId?: string) => { boardId: string; title: string; count: number } | null
 
   addBoard: (b: { jobTitle: string; jobCity?: string; label?: string; folder?: string }) => string
   setActiveBoard: (id: string) => void
@@ -199,6 +204,82 @@ export const useActions = create<ActionState>()(
           }
           if (removed) set({ images })
           return removed
+        },
+
+        extractChainToRoute: (id, boardId) => {
+          const src = boardOf(boardId)
+          const node = src?.nodes.find((n) => n.id === id)
+          if (!src || !node) return null
+          const moving = new Set<string>([node.id])
+          const addSubtree = (rootId: string) => {
+            for (const n of src.nodes) {
+              if (n.parentId === rootId && !moving.has(n.id)) {
+                moving.add(n.id)
+                addSubtree(n.id)
+              }
+            }
+          }
+          addSubtree(node.id)
+          const mates = src.nodes.filter(
+            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          )
+          const at = mates.findIndex((n) => n.id === node.id)
+          const followers: ActionNode[] = []
+          for (const f of at >= 0 ? mates.slice(at + 1) : []) {
+            if (moving.has(f.id)) continue
+            followers.push(f)
+            moving.add(f.id)
+            addSubtree(f.id)
+          }
+          const picked = src.nodes.filter((n) => moving.has(n.id))
+          const followerIds = new Set(followers.map((f) => f.id))
+          const rootShift = 1 - node.level
+          // 每个「后续步骤的子树」整体挂在根下同一层，位移按各自根算
+          const followerShift = new Map<string, number>()
+          const markFollowerSubtree = (rootId: string, delta: number) => {
+            followerShift.set(rootId, delta)
+            for (const n of src.nodes) {
+              if (n.parentId === rootId) markFollowerSubtree(n.id, delta)
+            }
+          }
+          for (const f of followers) markFollowerSubtree(f.id, 1 - f.level)
+          const newNodes: ActionNode[] = picked.map((n) => {
+            const isFollower = followerIds.has(n.id)
+            const delta = followerShift.get(n.id) ?? rootShift
+            return {
+              ...n,
+              level: Math.max(1, n.level + delta),
+              parentId:
+                n.id === node.id
+                  ? null
+                  : isFollower
+                    ? null
+                    : n.parentId && moving.has(n.parentId)
+                      ? n.parentId
+                      : null,
+              branch: isFollower || n.id === node.id ? '' : n.branch || '',
+              deps: (n.deps ?? []).filter((d) => moving.has(d)),
+              pinned: false,
+            }
+          })
+          pushHistory('独立成路线')
+          const newBoard: ActionBoard = {
+            id: `bd-${uid()}`,
+            jobTitle: node.title,
+            jobCity: '',
+            label: '',
+            folder: src.folder ?? '',
+            titleAuto: false,
+            createdAt: Date.now(),
+            archived: false,
+            nodes: newNodes,
+          }
+          set((st) => ({
+            boards: [newBoard, ...st.boards.map((b) =>
+              b.id === src.id ? { ...b, nodes: b.nodes.filter((n) => !moving.has(n.id)) } : b,
+            )],
+          }))
+          return { boardId: newBoard.id, title: newBoard.jobTitle, count: newNodes.length }
         },
 
         linkBoardInto: (boardIdToLink, targetBoardId) => {

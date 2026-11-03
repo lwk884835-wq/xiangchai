@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Ban, CheckCheck, ClipboardPaste, Copy, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
+import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -274,6 +274,7 @@ export const RouteBoard = memo(function RouteBoard({
   const clearDoneChildren = useActions((s) => s.clearDoneChildren)
   const markUnsuitable = useActions((s) => s.markUnsuitable)
   const unmarkUnsuitable = useActions((s) => s.unmarkUnsuitable)
+  const extractChainToRoute = useActions((s) => s.extractChainToRoute)
   const clipboard = useActions((s) => s.clipboard)
   const toast = useUi((s) => s.showToast)
   const [flashId, setFlashId] = useState<string | null>(null)
@@ -349,6 +350,10 @@ export const RouteBoard = memo(function RouteBoard({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return
+      // 正在输入框/富文本里编辑时，⌘C/⌘V 交给浏览器（不然会复制成卡片）
+      const t = e.target as HTMLElement | null
+      if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable) return
+      if (t?.closest('[contenteditable="true"]')) return
       if (document.querySelector('div.fixed.inset-0.z-40')) return
       const key = e.key.toLowerCase()
       if (key === 'c') {
@@ -555,27 +560,22 @@ export const RouteBoard = memo(function RouteBoard({
     const visibleIds = new Set(visible.map((n) => n.id))
 
     /**
-     * 一张卡「子树主线」的末端：沿主线一路往右下走到底。
-     * 串行链里上一张卡如果展开了子树，它的下一步其实排在整棵子树后面，
-     * 连接线得从子树末端接过去，不能直接从上一张卡横跨子树画到下一步（会穿过子卡）。
+     * 一张卡下面可能有几条并行分支：每条分支各自走到末端。
+     * 「接下一步」时每一条末端的卡都要用带线箭头连过去，
+     * 不能只连主线那一条（那样看起来像只有主线走到下一步）。
      */
-    const tailOf = (n: ActionNode): ActionNode => {
-      let cur = n
-      for (let guard = 0; guard < 50; guard++) {
-        const kids = childrenOf(nodes, cur.id).filter((k) => visibleIds.has(k.id))
-        if (!kids.length) return cur
-        const groups = new Map<string, ActionNode[]>()
-        for (const k of kids) {
-          const key = k.branch || ''
-          groups.set(key, [...(groups.get(key) ?? []), k])
-        }
-        const mainKey = groups.has('主线') ? '主线' : [...groups.keys()][0]
-        const chain = groups.get(mainKey) ?? kids
-        const next = chain[chain.length - 1] ?? kids[0]
-        if (!next || next.id === cur.id) return cur
-        cur = next
+    const branchTails = (n: ActionNode): ActionNode[] => {
+      const kids = childrenOf(nodes, n.id).filter((k) => visibleIds.has(k.id))
+      if (!kids.length) return [n]
+      const map = new Map<string, ActionNode[]>()
+      for (const k of kids) map.set(k.branch || '', [...(map.get(k.branch || '') ?? []), k])
+      const tails: ActionNode[] = []
+      for (const g of map.values()) {
+        const last = g[g.length - 1]
+        if (!last) continue
+        tails.push(...branchTails(last))
       }
-      return cur
+      return tails.length ? tails : [n]
     }
 
     // 顶层目标之间的连接，三种情况：
@@ -623,12 +623,20 @@ export const RouteBoard = memo(function RouteBoard({
       */
       const foldedWithKids =
         collapsed.includes(prevRoot.id) && nodes.some((n) => n.parentId === prevRoot.id)
-      const tail =
-        tailNode.id !== prevRoot.id || foldedWithKids ? rectOf(tailNode.id) : null
+      const tails = branchTails(prevRoot)
+        .map((t) => rectOf(t.id))
+        .filter((r): r is NonNullable<ReturnType<typeof rectOf>> => !!r)
+      const hasDeep = tails.some((r) => r !== null) && tails.length > 0 &&
+        !(tails.length === 1 && tails[0].left === a.left) &&
+        (tailNode.id !== prevRoot.id || foldedWithKids)
 
-      if (tail) {
-        out.push(...elbow(tail.right, tail.cy, b.left, b.cy, tail.right + 6))
-        out.push({ d: chevron(centeredTip(tail.right, b.left), b.cy), tone: 'tip' })
+      if (hasDeep && tails.length) {
+        for (const t of tails) {
+          out.push(...elbow(t.right, t.cy, b.left, b.cy, t.right + 6))
+        }
+        // 多条线汇进同一张卡：箭头只画一枚，取最靠右那条的入口
+        const tipFrom = tails.reduce((best, cur) => (cur.right > best.right ? cur : best), tails[0])
+        out.push({ d: chevron(centeredTip(tipFrom.right, b.left), b.cy), tone: 'tip' })
         continue
       }
 
@@ -674,19 +682,21 @@ export const RouteBoard = memo(function RouteBoard({
           const b = rectOf(g[i].id)
           if (!a || !b) continue
           const prevNode = g[i - 1]
-          const tail = tailOf(prevNode)
-          if (tail.id !== prevNode.id) {
+          const tails = branchTails(prevNode)
+            .map((t) => rectOf(t.id))
+            .filter((r): r is NonNullable<ReturnType<typeof rectOf>> => !!r)
+          const deep = tails.length > 0 && tails.some((t) => t.left !== a.left)
+          if (deep) {
             /*
-              上一张卡有展开的子树：它的下一步在整棵子树后面。
-              以前还是按「相邻同级」直接画一个 V，V 会落在子卡中间（看起来像
-              子卡之间的连接，链条就断了）。现在从子树末端用带线箭头接到下一步。
+              上一张卡有展开的子树：它下面每条并行分支的末端都要接到下一步。
+              以前只从「主线末端」画一条，支线看起来就断在原地了。
             */
-            const t = rectOf(tail.id)
-            if (t) {
+            for (const t of tails) {
               out.push(...elbow(t.right, t.cy, b.left, b.cy, t.right + TRUNK_INSET))
-              out.push({ d: chevron(centeredTip(t.right, b.left), b.cy), tone: 'tip' })
-              continue
             }
+            const tipFrom = tails.reduce((best, cur) => (cur.right > best.right ? cur : best), tails[0])
+            out.push({ d: chevron(centeredTip(tipFrom.right, b.left), b.cy), tone: 'tip' })
+            continue
           }
           // 真正相邻的同级：V 型箭头（不带线），纵向放在两张卡的中点，
           // 卡片高度不同时也不会看着偏上/偏下
@@ -788,6 +798,24 @@ export const RouteBoard = memo(function RouteBoard({
                   <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
                     效果和把卡片拖到它上面一样，接在它下面单独成一条线
                   </p>
+                  <div className="my-1 h-px bg-line/70" />
+                  <button
+                    onClick={() => {
+                      const r = extractChainToRoute(target.id)
+                      if (r) toast(`已独立成路线「${r.title}」（${r.count} 个任务）`)
+                      else toast('独立失败：先确认这条路线里还有它')
+                      setCtxMenu(null)
+                    }}
+                    className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                  >
+                    <GitBranch size={12} className="mt-[3px] shrink-0" />
+                    <span>
+                      独立成一条路线
+                      <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                        连同子任务和后面步骤移出去，可在右栏搜索到
+                      </span>
+                    </span>
+                  </button>
                   <div className="my-1 h-px bg-line/70" />
                   {target.dropped ? (
                     <button

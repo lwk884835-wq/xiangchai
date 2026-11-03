@@ -11,6 +11,37 @@ import { cn } from '@/lib/cn'
  * - 支持按钮选图、直接粘贴截图、拖入图片
  * - 点图片弹出大图预览
  */
+
+/** 在光标处插入纯文本（支持换行），不依赖 execCommand */
+function insertPlainText(el: HTMLDivElement, text: string): void {
+  el.focus()
+  const sel = window.getSelection()
+  let range: Range
+  if (sel && sel.rangeCount && el.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+    range = sel.getRangeAt(0)
+  } else {
+    range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+  }
+  range.deleteContents()
+  const frag = document.createDocumentFragment()
+  const lines = text.split(/\r?\n/)
+  lines.forEach((line, i) => {
+    if (i > 0) frag.appendChild(document.createElement('br'))
+    if (line) frag.appendChild(document.createTextNode(line))
+  })
+  range.insertNode(frag)
+  // 光标移到插入内容之后
+  const after = document.createRange()
+  const last = frag.lastChild
+  if (last) after.setStartAfter(last)
+  else after.setStart(range.startContainer, range.startOffset)
+  after.collapse(true)
+  sel?.removeAllRanges()
+  sel?.addRange(after)
+}
+
 export function RichField({
   value,
   onChange,
@@ -134,16 +165,27 @@ export function RichField({
           }
         }}
         onPaste={(e) => {
-          const file = Array.from(e.clipboardData.files).find((f) => f.type.startsWith('image/'))
+          const dt = e.clipboardData
+          if (!dt) return
+          const fromFiles = Array.from(dt.files ?? [])
+          const fromItems = Array.from(dt.items ?? [])
+            .filter((it) => it.kind === 'file')
+            .map((it) => it.getAsFile())
+            .filter((f): f is File => !!f)
+          const file = [...fromFiles, ...fromItems].find((f) => f.type.startsWith('image/'))
           if (file) {
             e.preventDefault()
             rememberSelection()
             void addImageFile(file)
             return
           }
+          const text = dt.getData('text/plain')
+          if (!text) return
           e.preventDefault()
-          const text = e.clipboardData.getData('text/plain')
-          if (text) document.execCommand('insertText', false, text)
+          if (ref.current) {
+            insertPlainText(ref.current, text)
+            emit()
+          }
         }}
         onDragOver={(e) => {
           if (Array.from(e.dataTransfer.items).some((i) => i.kind === 'file')) e.preventDefault()
