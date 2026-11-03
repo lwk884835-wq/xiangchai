@@ -423,20 +423,42 @@ export const useActions = create<ActionState>()(
         clearDoneChildren: (id, boardId) => {
           const board = boardOf(boardId)
           if (!board) return 0
+          const value = (n: ActionNode) => n
+
+          /*
+            清「完全做完」的并行线，而不是「只要有一个完成就整串删」。
+            一条并行线（同一父级、同一 branch 的一串）只有它自己和下面所有子线
+            全部做完，才算完全做完、可以整串清掉；有没做完的就整条保留。
+          */
+          const kidsOf = (pid: string) => board.nodes.filter((n) => n.parentId === pid)
+          const groupsOf = (pid: string) => {
+            const map = new Map<string, ActionNode[]>()
+            for (const k of kidsOf(pid)) {
+              const key = k.branch || ''
+              map.set(key, [...(map.get(key) ?? []), value(k)])
+            }
+            return [...map.values()]
+          }
+          const groupDone = (group: ActionNode[]): boolean =>
+            group.every((n) => n.done && groupsOf(n.id).every(groupDone))
+
           const drop = new Set<string>()
           const addSubtree = (rootId: string) => {
             if (drop.has(rootId)) return
             drop.add(rootId)
             for (const n of board.nodes) if (n.parentId === rootId) addSubtree(n.id)
           }
-          const walk = (pid: string) => {
-            for (const n of board.nodes) {
-              if (n.parentId !== pid) continue
-              if (n.done) addSubtree(n.id)
-              else walk(n.id)
+          const prune = (pid: string) => {
+            for (const group of groupsOf(pid)) {
+              if (groupDone(group)) {
+                for (const n of group) addSubtree(n.id)
+              } else {
+                // 整条线没做完：保留，但可以继续清它下面「完全做完」的子线
+                for (const n of group) prune(n.id)
+              }
             }
           }
-          walk(id)
+          prune(id)
           if (!drop.size) return 0
           pushHistory('清除已完成子任务')
           patchBoard(board.id, (b) => ({

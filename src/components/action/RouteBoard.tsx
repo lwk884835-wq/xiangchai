@@ -908,7 +908,11 @@ export const RouteBoard = memo(function RouteBoard({
                     <button
                       onClick={() => {
                         const n = clearDoneChildren(target.id)
-                        toast(`已清除 ${n} 个已完成的子任务`)
+                        toast(
+                          n
+                            ? `已清除 ${n} 个任务（只清整条都做完的线）`
+                            : '没有整条都做完的并行线，未改动',
+                        )
                         setCtxMenu(null)
                       }}
                       className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
@@ -917,7 +921,7 @@ export const RouteBoard = memo(function RouteBoard({
                       <span>
                         清除已完成的子任务
                         <span className="mt-0.5 block text-[10px] leading-snug text-faint">
-                          只清勾选完成的，其它不动
+                          只清整条线都做完的，没做完的整条保留
                         </span>
                       </span>
                     </button>
