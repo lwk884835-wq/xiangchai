@@ -442,22 +442,14 @@ export function BoardList() {
           return (
             <div key={name}>
               <div className="group/folder flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface-3">
-                <button
-                  onClick={() => toggleFolder(name)}
-                  className="flex min-w-0 flex-1 items-center gap-1 text-left"
-                >
-                  <ChevronDown
-                    size={11}
-                    className={cn('shrink-0 transition-transform', folded && '-rotate-90')}
-                  />
-                  <Folder size={11} className="shrink-0 text-faint" />
-                  {renamingFolder === name ? (
+                {renamingFolder === name ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <Folder size={11} className="shrink-0 text-faint" />
                     <input
                       autoFocus
                       value={folderRenameDraft}
                       onFocus={(e) => e.currentTarget.select()}
                       onChange={(e) => setFolderRenameDraft(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           const next = folderRenameDraft.trim()
@@ -478,21 +470,29 @@ export function BoardList() {
                       }}
                       className="h-[18px] min-w-0 flex-1 rounded border border-accent-line bg-surface px-1 text-[11px] outline-none"
                     />
-                  ) : (
-                    <>
-                      <span
-                        className="truncate"
-                        onDoubleClick={() => {
-                          setRenamingFolder(name)
-                          setFolderRenameDraft(name)
-                        }}
-                      >
-                        {name}
-                      </span>
-                      <span className="num shrink-0 text-faint">{routes.length}</span>
-                    </>
-                  )}
-                </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => toggleFolder(name)}
+                    className="flex min-w-0 flex-1 items-center gap-1 text-left"
+                  >
+                    <ChevronDown
+                      size={11}
+                      className={cn('shrink-0 transition-transform', folded && '-rotate-90')}
+                    />
+                    <Folder size={11} className="shrink-0 text-faint" />
+                    <span
+                      className="truncate"
+                      onDoubleClick={() => {
+                        setRenamingFolder(name)
+                        setFolderRenameDraft(name)
+                      }}
+                    >
+                      {name}
+                    </span>
+                    <span className="num shrink-0 text-faint">{routes.length}</span>
+                  </button>
+                )}
                 {renamingFolder !== name && (
                   <button
                     onClick={() => {
