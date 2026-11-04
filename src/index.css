@@ -522,15 +522,15 @@
 .rich-img-chip {
   display: inline-flex;
   align-items: center;
-  height: 16px;
-  margin: 0 2px;
-  padding: 0 5px;
-  border: 1px solid var(--color-accent-line);
-  border-radius: 4px;
+  height: 14px;
+  margin: 0 1px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 3px;
   background: var(--color-accent-soft);
   color: var(--color-accent-ink);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: 9.5px;
+  line-height: 12px;
   vertical-align: middle;
   cursor: zoom-in;
   user-select: none;

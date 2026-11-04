@@ -3,6 +3,7 @@ import { ImagePlus } from 'lucide-react'
 import { useActions } from '@/store/actions'
 import { fileToDataUrl } from '@/lib/image'
 import { parseEditorValue, richHtml } from '@/lib/richText'
+import { HoverImagePreview, ImageLightbox } from './ImageOverlay'
 import { cn } from '@/lib/cn'
 
 /**
@@ -68,7 +69,7 @@ export function RichField({
   const images = useActions((s) => s.images)
   const addImage = useActions((s) => s.addImage)
   const [preview, setPreview] = useState<string | null>(null)
-  const [hover, setHover] = useState<{ src: string; left: number; top: number } | null>(null)
+  const [hover, setHover] = useState<{ src: string; anchor: DOMRect } | null>(null)
   /** 自己维护的撤销栈：粘贴/插图这类程序性修改不进浏览器原生历史，⌘Z 得能退 */
   const undoRef = useRef<string[]>([])
   const redoRef = useRef<string[]>([])
@@ -284,10 +285,7 @@ export function RichField({
           const chip = (e.target as HTMLElement).closest('[data-img-id]') as HTMLElement | null
           const src = chip?.dataset.imgId ? images[chip.dataset.imgId] : null
           if (!chip || !src) return
-          const r = chip.getBoundingClientRect()
-          const left = Math.min(Math.max(8, r.left), window.innerWidth - 336)
-          const top = r.bottom + 8 + 240 > window.innerHeight ? r.top - 248 : r.bottom + 8
-          setHover({ src, left, top })
+          setHover({ src, anchor: chip.getBoundingClientRect() })
         }}
         onMouseOut={(e) => {
           if ((e.target as HTMLElement).closest('[data-img-id]')) setHover(null)
@@ -358,23 +356,8 @@ export function RichField({
         <ImagePlus size={12} />
       </button>
 
-      {hover && (
-        <div
-          className="pointer-events-none fixed z-[75] overflow-hidden rounded-lg border border-line bg-surface p-1 shadow-e3"
-          style={{ left: hover.left, top: hover.top }}
-        >
-          <img src={hover.src} alt="图片预览" className="max-h-[240px] max-w-[320px] rounded-md object-contain" />
-        </div>
-      )}
-
-      {preview && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-8"
-          onClick={() => setPreview(null)}
-        >
-          <img src={preview} alt="图片预览" className="max-h-full max-w-full rounded-lg shadow-2xl" />
-        </div>
-      )}
+      {hover && <HoverImagePreview src={hover.src} anchor={hover.anchor} />}
+      {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}
     </div>
   )
 }

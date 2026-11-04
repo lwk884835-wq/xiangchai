@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react'
 import { splitRich } from '@/lib/richText'
+import { HoverImagePreview, ImageLightbox } from './ImageOverlay'
 
 /** 只读展示：文字 + 内嵌图片（文段里只显示小胶囊，悬停放大、点击看大图） */
 export function RichText({
@@ -13,15 +14,12 @@ export function RichText({
   className?: string
   onImageClick?: (src: string) => void
 }) {
-  const [hover, setHover] = useState<{ src: string; left: number; top: number } | null>(null)
+  const [hover, setHover] = useState<{ src: string; anchor: DOMRect } | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   if (!text) return null
 
   const showHover = (el: HTMLElement, src: string) => {
-    const r = el.getBoundingClientRect()
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - 336)
-    const top = r.bottom + 8 + 240 > window.innerHeight ? r.top - 248 : r.bottom + 8
-    setHover({ src, left, top })
+    setHover({ src, anchor: el.getBoundingClientRect() })
   }
 
   let n = 0
@@ -56,25 +54,8 @@ export function RichText({
           </Fragment>
         )
       })}
-      {hover && (
-        <span
-          className="pointer-events-none fixed z-[75] overflow-hidden rounded-lg border border-line bg-surface p-1 shadow-e3"
-          style={{ left: hover.left, top: hover.top }}
-        >
-          <img src={hover.src} alt="图片预览" className="max-h-[240px] max-w-[320px] rounded-md object-contain" />
-        </span>
-      )}
-      {preview && (
-        <span
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-8"
-          onClick={(e) => {
-            e.stopPropagation()
-            setPreview(null)
-          }}
-        >
-          <img src={preview} alt="图片预览" className="max-h-full max-w-full rounded-lg shadow-2xl" />
-        </span>
-      )}
+      {hover && <HoverImagePreview src={hover.src} anchor={hover.anchor} />}
+      {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}
     </span>
   )
 }
