@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { ChevronDown, ChevronUp, Plus, Redo2, Search, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Redo2, Search, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
@@ -262,15 +262,14 @@ export function RoutePage({
             >
               <span
                 data-agent-entry-icon
-                className={cn('flex shrink-0 items-center', flying && 'opacity-0')}
+                className={cn(
+                  'flex shrink-0 items-center transition-opacity duration-200',
+                  flying || agentOpen ? 'opacity-0' : 'opacity-100',
+                )}
               >
                 <RouteMark size={18} />
               </span>
               <span className="hidden lg:inline">{agentOpen ? '收起 Agent' : 'Agent'}</span>
-            </button>
-            <button onClick={addGoal} className="btn btn-line" title="自己加一个目标">
-              <Plus size={12} />
-              <span className="hidden lg:inline">加目标</span>
             </button>
           </div>
         </header>

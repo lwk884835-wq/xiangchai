@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom'
 export function HoverImagePreview({ src, anchor }: { src: string; anchor: DOMRect }) {
   const width = 288
   const height = 220
-  const left = Math.min(Math.max(8, anchor.left - 8), window.innerWidth - width - 12)
-  const below = anchor.bottom + 8
-  const top = below + height > window.innerHeight - 8 ? Math.max(8, anchor.top - height - 8) : below
+  const left = Math.min(Math.max(8, anchor.left - 4), window.innerWidth - width - 12)
+  const below = anchor.bottom + 3
+  const top = below + height > window.innerHeight - 8 ? Math.max(8, anchor.top - height - 4) : below
   return createPortal(
     <div
       className="pointer-events-none fixed z-[200] overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-e3"

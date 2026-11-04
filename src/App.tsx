@@ -9,8 +9,8 @@ import { cn } from '@/lib/cn'
 /** 这个宽度以下，助手改成浮层，不再挤占路线图 */
 const WIDE_QUERY = '(min-width: 1180px)'
 /** 标飞一趟花多久（展开 / 收起分开定，收起快一点） */
-const FLY_IN = 420
-const FLY_OUT = 380
+const FLY_IN = 300
+const FLY_OUT = 260
 /** 面板头像的位置：头部 56 高、头像 30 居中 → top 13；面板 px-3.5 → left 14 */
 const AVATAR_SIZE = 30
 const AVATAR_TOP = 13
