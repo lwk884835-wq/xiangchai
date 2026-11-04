@@ -34,8 +34,10 @@ const TIP = '#7c6cf0'
 type Seg = { d: string; tone: 'trunk' | 'branch' | 'tip' }
 
 /** 尖角深度和半高：深 9、开口 10，全站统一 */
-const TIP_DEPTH = 9
-const TIP_HALF = 5
+const TIP_DEPTH = 6
+const TIP_HALF = 4
+/** 带线箭头的横线停在离箭尖多远（贴着尖角中心，别留大缝） */
+const TIP_JOIN = 3
 
 /**
  * 主干竖线离父卡右边缘多远。
@@ -81,16 +83,14 @@ function vArrow(tipX: number, y: number): string {
  * 尖角居中于整段卡片空隙（x1 是左边那张卡的右边缘），不是居中于主线到卡片那段。
  */
 function elbow(x1: number, y1: number, x2: number, y2: number, outX: number): Seg[] {
-  const tipX = centeredTip(x1, x2)
-  // 同一行：一条完整直线，别缩进、别断
+  // x2 由调用方给（= 箭尖坐标 - TIP_JOIN），这里只负责把线连到那里，别再自己算尖角中心
   if (Math.abs(y2 - y1) <= 1) {
-    return [{ d: `M${x1},${y1} L${tipX - TIP_DEPTH},${y2}`, tone: 'branch' }]
+    return [{ d: `M${x1},${y1} L${x2},${y2}`, tone: 'branch' }]
   }
-  // 不同行：横出 → 竖主干 → 横进尖角
   const segs: Seg[] = [{ d: `M${x1},${y1} L${outX},${y1}`, tone: 'branch' }]
   segs.push({ d: `M${outX},${y1} L${outX},${y2}`, tone: 'trunk' })
-  if (tipX - TIP_DEPTH > outX) {
-    segs.push({ d: `M${outX},${y2} L${tipX - TIP_DEPTH},${y2}`, tone: 'branch' })
+  if (x2 > outX) {
+    segs.push({ d: `M${outX},${y2} L${x2},${y2}`, tone: 'branch' })
   }
   return segs
 }
@@ -638,7 +638,7 @@ export const RouteBoard = memo(function RouteBoard({
         const usable = tails.filter((t) => t.right < busX - 2)
         for (const t of usable) {
           // 横线停在小尖角的开口正中（夹角中央），箭尖再贴到卡片左边
-          out.push(...elbow(t.right, t.cy, b.left - TIP_DEPTH, b.cy, busX))
+          out.push(...elbow(t.right, t.cy, b.left - TIP_JOIN, b.cy, busX))
         }
         if (usable.length) out.push({ d: chevron(b.left, b.cy), tone: 'tip' })
         continue
@@ -675,7 +675,7 @@ export const RouteBoard = memo(function RouteBoard({
       // 视觉上还是一根主干分出几枝，但形状和「两个根目标之间」那条完全一样。
       const outX = p.right + TRUNK_INSET
       for (const h of heads) {
-        out.push(...elbow(p.right, p.cy, h.r.left - TIP_DEPTH, h.r.cy, outX))
+        out.push(...elbow(p.right, p.cy, h.r.left - TIP_JOIN, h.r.cy, outX))
         out.push({ d: chevron(h.r.left, h.r.cy), tone: 'tip' })
       }
 
@@ -698,7 +698,7 @@ export const RouteBoard = memo(function RouteBoard({
             const busX = b.left - 12
             const usable = tails.filter((t) => t.right < busX - 2)
             for (const t of usable) {
-              out.push(...elbow(t.right, t.cy, b.left - TIP_DEPTH, b.cy, busX))
+              out.push(...elbow(t.right, t.cy, b.left - TIP_JOIN, b.cy, busX))
             }
             if (usable.length) out.push({ d: chevron(b.left, b.cy), tone: 'tip' })
             continue

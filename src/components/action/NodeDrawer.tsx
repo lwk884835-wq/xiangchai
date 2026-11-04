@@ -639,7 +639,7 @@ export function NodeDrawer({
                 onChange={setDetail}
                 onBlur={() => updateNode(node.id, { detail })}
                 placeholder="具体动作、交付物、验收标准（可以插图）"
-                minHeight={112}
+                minHeight={100}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
@@ -658,7 +658,7 @@ export function NodeDrawer({
                 onChange={setNotes}
                 onBlur={() => updateNode(node.id, { notes: notes.trim() })}
                 placeholder="选填：想到什么记什么，不会被当成任务执行（可以插图）"
-                minHeight={74}
+                minHeight={100}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
@@ -861,17 +861,18 @@ export function NodeDrawer({
                   }
                 }}
               />
-              <input
+              <RichField
                 value={childNotes}
-                onChange={(e) => setChildNotes(e.target.value)}
-                placeholder="其他批注（选填：想到什么记什么，不参与任务逻辑）"
+                onChange={setChildNotes}
+                placeholder="其他批注（选填：想到什么记什么，不参与任务逻辑；可以插图）"
+                minHeight={32}
+                className="max-h-24 px-2 py-1 text-[11.5px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
                     addChild()
                   }
                 }}
-                className="field h-8 text-[11.5px]"
               />
               <div className="flex flex-wrap items-center gap-1.5">
                 <button

@@ -120,6 +120,52 @@ export function RichField({
     return true
   }
 
+
+  /** 按一下退格/Delete 就删掉光标旁边的图片（别让第一次只把光标挪到左边） */
+  const tryDeleteAdjacentImage = (dir: -1 | 1): boolean => {
+    const sel = window.getSelection()
+    const el = ref.current
+    if (!el || !sel || sel.rangeCount === 0 || !sel.isCollapsed) return false
+    const range = sel.getRangeAt(0)
+    if (!el.contains(range.startContainer)) return false
+    const imgOf = (node: Node | null): HTMLElement | null =>
+      node instanceof HTMLElement && node.dataset.imgId ? node : null
+    const isZeroText = (node: Node | null) =>
+      node?.nodeType === Node.TEXT_NODE && (node.textContent ?? '').replace(/\u200b/g, '') === ''
+
+    let target: HTMLElement | null = null
+    const container = range.startContainer
+    const offset = range.startOffset
+    if (container.nodeType === Node.TEXT_NODE) {
+      const text = container as Text
+      if (dir === -1) {
+        if (offset === 0 || (offset === text.length && isZeroText(text))) {
+          target = imgOf(text.previousSibling)
+        }
+      } else if (offset === text.length) {
+        target = imgOf(text.nextSibling)
+      }
+    } else {
+      let cand: Node | null =
+        dir === -1 ? (container.childNodes[offset - 1] ?? null) : (container.childNodes[offset] ?? null)
+      if (isZeroText(cand)) cand = dir === -1 ? cand?.previousSibling ?? null : cand?.nextSibling ?? null
+      target = imgOf(cand)
+    }
+    if (!target?.parentNode) return false
+
+    const parent = target.parentNode
+    const index = Array.prototype.indexOf.call(parent.childNodes, target)
+    const zero = dir === -1 ? target.nextSibling : target.previousSibling
+    if (zero && isZeroText(zero)) parent.removeChild(zero)
+    parent.removeChild(target)
+    const next = document.createRange()
+    next.setStart(parent, Math.min(Math.max(0, index), parent.childNodes.length))
+    next.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(next)
+    return true
+  }
+
   const emit = () => {
     const el = ref.current
     if (el) onChange(parseEditorValue(el))
@@ -216,6 +262,13 @@ export function RichField({
             }
             return
           }
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (tryDeleteAdjacentImage(e.key === 'Backspace' ? -1 : 1)) {
+              e.preventDefault()
+              emit()
+              return
+            }
+          }
           onKeyDown?.(e)
         }}
         onInput={emit}
@@ -267,7 +320,7 @@ export function RichField({
         onMouseUp={rememberSelection}
         onKeyUp={rememberSelection}
         className={cn(
-          'rich-field w-full resize-none overflow-y-auto rounded-[6px] border border-line bg-surface px-2.5 py-[5px] text-[12.5px] leading-[18px] break-words whitespace-pre-wrap text-ink outline-none transition-colors focus:border-accent-line focus:ring-2 focus:ring-accent/25',
+          'rich-field w-full resize-none overflow-y-auto rounded-[6px] border border-line bg-surface px-2.5 py-[5px] text-[12.5px] leading-[16px] break-words whitespace-pre-wrap text-ink outline-none transition-colors focus:border-accent-line focus:ring-2 focus:ring-accent/25',
           className,
         )}
         style={{ minHeight }}

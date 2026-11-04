@@ -24,9 +24,24 @@ const AVATAR_LEFT = 14
  */
 export default function App() {
   const wide = useMedia(WIDE_QUERY)
-  const [agentOpen, setAgentOpen] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches,
-  )
+  const [agentOpen, setAgentOpen] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const saved = localStorage.getItem('work-route-agent-open')
+      if (saved === '1') return true
+      if (saved === '0') return false
+    } catch {
+      /* ignore */
+    }
+    return window.matchMedia(WIDE_QUERY).matches
+  })
+  const rememberAgentOpen = (v: boolean) => {
+    try {
+      localStorage.setItem('work-route-agent-open', v ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
   const [closing, setClosing] = useState(false)
   const [entered, setEntered] = useState(false)
   const [flight, setFlight] = useState<{ from: DOMRect; to: DOMRect; ms: number } | null>(null)
@@ -51,6 +66,7 @@ export default function App() {
 
   const openAgent = () => {
     clearTimers()
+    rememberAgentOpen(true)
     setClosing(false)
     const from = entryRect()
     if (wide && from) {
@@ -65,6 +81,7 @@ export default function App() {
   const closeAgent = () => {
     if (closing) return
     clearTimers()
+    rememberAgentOpen(false)
     const from = document.querySelector('[data-agent-avatar]')?.getBoundingClientRect() ?? null
     const to = entryRect()
     const ms = wide && from && to ? FLY_OUT : 0
