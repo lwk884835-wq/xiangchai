@@ -518,18 +518,22 @@
   color: var(--color-faint);
   pointer-events: none;
 }
-.rich-img {
-  display: inline-block;
+/* 文段里的图片只显示胶囊（不顶高行高）：悬停放大、点击看大图 */
+.rich-img-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
   margin: 0 2px;
-  vertical-align: middle;
-}
-.rich-img img {
-  display: block;
-  max-height: 26px;
-  max-width: 120px;
+  padding: 0 5px;
+  border: 1px solid var(--color-accent-line);
   border-radius: 4px;
-  border: 1px solid var(--color-line);
-  object-fit: cover;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  font-size: 10px;
+  line-height: 14px;
+  vertical-align: middle;
+  cursor: zoom-in;
+  user-select: none;
 }
 .rich-missing {
   color: var(--color-faint);

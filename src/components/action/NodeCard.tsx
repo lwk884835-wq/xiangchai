@@ -240,11 +240,7 @@ export const NodeCard = memo(function NodeCard({
               st.sub,
             )}
           >
-            <RichText
-              text={node.purpose}
-              images={images}
-              imageClassName="mr-1 inline-block max-h-[52px] max-w-[96px] rounded border border-line/70 object-cover align-middle"
-            />
+            <RichText text={node.purpose} images={images} />
           </p>
         )}
       </div>

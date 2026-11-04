@@ -68,6 +68,7 @@ export function RichField({
   const images = useActions((s) => s.images)
   const addImage = useActions((s) => s.addImage)
   const [preview, setPreview] = useState<string | null>(null)
+  const [hover, setHover] = useState<{ src: string; left: number; top: number } | null>(null)
   /** 自己维护的撤销栈：粘贴/插图这类程序性修改不进浏览器原生历史，⌘Z 得能退 */
   const undoRef = useRef<string[]>([])
   const redoRef = useRef<string[]>([])
@@ -195,11 +196,9 @@ export function RichField({
     const span = document.createElement('span')
     span.contentEditable = 'false'
     span.dataset.imgId = id
-    span.className = 'rich-img'
-    const img = document.createElement('img')
-    img.src = url
-    img.alt = ''
-    span.appendChild(img)
+    span.className = 'rich-img-chip'
+    span.title = '悬停放大，点击看大图'
+    span.textContent = `图${el.querySelectorAll('[data-img-id]').length + 1}`
     range.deleteContents()
     range.insertNode(span)
     // 图后面留一个光标位，方便继续打字
@@ -273,11 +272,25 @@ export function RichField({
         }}
         onInput={emit}
         onMouseDown={(e) => {
-          const img = (e.target as HTMLElement).closest('span.rich-img img') as HTMLImageElement | null
-          if (img) {
+          const chip = (e.target as HTMLElement).closest('[data-img-id]') as HTMLElement | null
+          const src = chip?.dataset.imgId ? images[chip.dataset.imgId] : null
+          if (chip && src) {
             e.preventDefault()
-            setPreview(img.src)
+            setHover(null)
+            setPreview(src)
           }
+        }}
+        onMouseOver={(e) => {
+          const chip = (e.target as HTMLElement).closest('[data-img-id]') as HTMLElement | null
+          const src = chip?.dataset.imgId ? images[chip.dataset.imgId] : null
+          if (!chip || !src) return
+          const r = chip.getBoundingClientRect()
+          const left = Math.min(Math.max(8, r.left), window.innerWidth - 336)
+          const top = r.bottom + 8 + 240 > window.innerHeight ? r.top - 248 : r.bottom + 8
+          setHover({ src, left, top })
+        }}
+        onMouseOut={(e) => {
+          if ((e.target as HTMLElement).closest('[data-img-id]')) setHover(null)
         }}
         onPaste={(e) => {
           const dt = e.clipboardData
@@ -344,6 +357,15 @@ export function RichField({
       >
         <ImagePlus size={12} />
       </button>
+
+      {hover && (
+        <div
+          className="pointer-events-none fixed z-[75] overflow-hidden rounded-lg border border-line bg-surface p-1 shadow-e3"
+          style={{ left: hover.left, top: hover.top }}
+        >
+          <img src={hover.src} alt="图片预览" className="max-h-[240px] max-w-[320px] rounded-md object-contain" />
+        </div>
+      )}
 
       {preview && (
         <div

@@ -6,13 +6,12 @@ import {
   Download,
   Folder,
   FolderInput,
-  FolderMinus,
   FolderPlus,
   Link,
   Link2,
-  Pencil,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -39,6 +38,7 @@ export function BoardList() {
   const moveSubtreeToBoard = useActions((s) => s.moveSubtreeToBoard)
   const folders = useActions((s) => s.folders)
   const addFolder = useActions((s) => s.addFolder)
+  const renameFolder = useActions((s) => s.renameFolder)
   const removeFolder = useActions((s) => s.removeFolder)
   const setBoardFolder = useActions((s) => s.setBoardFolder)
   const linkBoardInto = useActions((s) => s.linkBoardInto)
@@ -107,6 +107,9 @@ export function BoardList() {
   const [query, setQuery] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState('')
+  /** 正在重命名的文件夹 */
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null)
+  const [folderRenameDraft, setFolderRenameDraft] = useState('')
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
   const [folderMenuBoardId, setFolderMenuBoardId] = useState<string | null>(null)
   const [folderMenuDraft, setFolderMenuDraft] = useState('')
@@ -448,9 +451,60 @@ export function BoardList() {
                     className={cn('shrink-0 transition-transform', folded && '-rotate-90')}
                   />
                   <Folder size={11} className="shrink-0 text-faint" />
-                  <span className="truncate">{name}</span>
-                  <span className="num shrink-0 text-faint">{routes.length}</span>
+                  {renamingFolder === name ? (
+                    <input
+                      autoFocus
+                      value={folderRenameDraft}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => setFolderRenameDraft(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const next = folderRenameDraft.trim()
+                          if (next && next !== name) {
+                            renameFolder(name, next)
+                            toast(`文件夹已改名为「${next}」`)
+                          }
+                          setRenamingFolder(null)
+                        } else if (e.key === 'Escape') setRenamingFolder(null)
+                      }}
+                      onBlur={() => {
+                        const next = folderRenameDraft.trim()
+                        if (next && next !== name) {
+                          renameFolder(name, next)
+                          toast(`文件夹已改名为「${next}」`)
+                        }
+                        setRenamingFolder(null)
+                      }}
+                      className="h-[18px] min-w-0 flex-1 rounded border border-accent-line bg-surface px-1 text-[11px] outline-none"
+                    />
+                  ) : (
+                    <>
+                      <span
+                        className="truncate"
+                        onDoubleClick={() => {
+                          setRenamingFolder(name)
+                          setFolderRenameDraft(name)
+                        }}
+                      >
+                        {name}
+                      </span>
+                      <span className="num shrink-0 text-faint">{routes.length}</span>
+                    </>
+                  )}
                 </button>
+                {renamingFolder !== name && (
+                  <button
+                    onClick={() => {
+                      setRenamingFolder(name)
+                      setFolderRenameDraft(name)
+                    }}
+                    title="重命名文件夹"
+                    className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover/folder:opacity-100 hover:bg-surface-3 hover:text-ink"
+                  >
+                    <Pencil size={10} />
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     removeFolder(name)
@@ -459,7 +513,7 @@ export function BoardList() {
                   title="删除文件夹（里面的路线回到未分类）"
                   className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-faint opacity-0 transition-opacity group-hover/folder:opacity-100 hover:bg-surface-3 hover:text-danger"
                 >
-                  <FolderMinus size={11} />
+                  <Trash2 size={11} />
                 </button>
               </div>
               {!folded && <div className="space-y-1">{routes.map(renderRoute)}</div>}

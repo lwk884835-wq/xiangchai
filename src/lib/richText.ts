@@ -29,6 +29,7 @@ const escapeHtml = (s: string) =>
 /** 给 contenteditable 生成初始 HTML */
 export function richHtml(text: string, images: Record<string, string>): string {
   let html = ''
+  let no = 0
   for (const part of splitRich(text)) {
     if (part.type === 'text') html += escapeHtml(part.value).replace(/\n/g, '<br>')
     else {
@@ -37,7 +38,8 @@ export function richHtml(text: string, images: Record<string, string>): string {
         html += '<span class="rich-missing">〔图片〕</span>'
         continue
       }
-      html += `<span contenteditable="false" data-img-id="${part.id}" class="rich-img"><img src="${url}" alt="" /></span>`
+      no += 1
+      html += `<span contenteditable="false" data-img-id="${part.id}" class="rich-img-chip" title="悬停放大，点击看大图">图${no}</span>`
     }
   }
   return html

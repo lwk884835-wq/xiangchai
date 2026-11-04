@@ -54,6 +54,7 @@ interface ActionState {
   pruneImages: () => number
 
   addFolder: (name: string) => string
+  renameFolder: (oldName: string, newName: string) => void
   removeFolder: (name: string) => void
   setBoardFolder: (boardId: string, folder: string) => void
   /** 右键一键清除某张卡下所有已完成的子任务（连同它们的子树），可撤回 */
@@ -405,6 +406,18 @@ export const useActions = create<ActionState>()(
           if (!clean) return ''
           set((s) => ({ folders: s.folders.includes(clean) ? s.folders : [...s.folders, clean] }))
           return clean
+        },
+
+        renameFolder: (oldName, newName) => {
+          const clean = newName.trim()
+          if (!clean || clean === oldName) return
+          set((s) => ({
+            // 改名后如果和已有文件夹撞名，就合并成一个，顺序跟着旧名字的位置
+            folders: s.folders
+              .map((f) => (f === oldName ? clean : f))
+              .filter((f, i, arr) => arr.indexOf(f) === i),
+            boards: s.boards.map((b) => (b.folder === oldName ? { ...b, folder: clean } : b)),
+          }))
         },
 
         removeFolder: (name) =>
