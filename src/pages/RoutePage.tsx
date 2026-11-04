@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { ChevronDown, ChevronUp, Redo2, Search, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, PanelLeftClose, Redo2, Search, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
@@ -257,19 +257,27 @@ export function RoutePage({
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <button
               onClick={onToggleAgent}
-              className={cn('btn', agentOpen ? 'btn-line' : 'btn-accent')}
+              className={cn(
+                'btn overflow-hidden',
+                agentOpen ? 'btn-line' : 'btn-accent',
+              )}
+              style={{
+                width: agentOpen ? 118 : 88,
+                transition:
+                  'width 300ms cubic-bezier(0.22,1,0.36,1), background-color 300ms ease, border-color 300ms ease, color 300ms ease',
+              }}
               title={agentOpen ? '收起路线 Agent' : '打开路线 Agent（读 / 拆 / 改路线）'}
             >
               <span
                 data-agent-entry-icon
                 className={cn(
-                  'flex shrink-0 items-center transition-opacity duration-200',
-                  flying || agentOpen ? 'opacity-0' : 'opacity-100',
+                  'flex h-[18px] w-[18px] shrink-0 items-center justify-center transition-opacity duration-200',
+                  flying && 'opacity-0',
                 )}
               >
-                <RouteMark size={18} />
+                {agentOpen ? <PanelLeftClose size={16} strokeWidth={1.9} /> : <RouteMark size={18} />}
               </span>
-              <span className="hidden lg:inline">{agentOpen ? '收起 Agent' : 'Agent'}</span>
+              <span className="whitespace-nowrap">{agentOpen ? '收起 Agent' : 'Agent'}</span>
             </button>
           </div>
         </header>

@@ -865,7 +865,7 @@ export function NodeDrawer({
                 value={childDetail}
                 onChange={setChildDetail}
                 placeholder="具体怎么做（选填：动作、产出物、怎么算完成）"
-                minHeight={48}
+                minHeight={40}
                 className="max-h-32 px-2 py-1 text-[11.5px] leading-[17px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -878,7 +878,7 @@ export function NodeDrawer({
                 value={childNotes}
                 onChange={setChildNotes}
                 placeholder="其他批注（选填：想到什么记什么，不参与任务逻辑；可以插图）"
-                minHeight={32}
+                minHeight={40}
                 className="max-h-24 px-2 py-1 text-[11.5px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
