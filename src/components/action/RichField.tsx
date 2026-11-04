@@ -80,6 +80,7 @@ export function RichField({
     if (!el || focusedRef.current) return
     const html = richHtml(value, images)
     if (el.innerHTML !== html) el.innerHTML = html
+    el.dataset.empty = parseEditorValue(el).trim() ? 'false' : 'true'
   }, [value, images])
 
   const currentText = () => {
@@ -96,6 +97,7 @@ export function RichField({
     const el = ref.current
     if (!el) return
     el.innerHTML = richHtml(text, images)
+    syncEmpty(el)
     // 光标放到末尾
     const range = document.createRange()
     range.selectNodeContents(el)
@@ -168,9 +170,15 @@ export function RichField({
     return true
   }
 
+  const syncEmpty = (el: HTMLDivElement) => {
+    el.dataset.empty = parseEditorValue(el).trim() ? 'false' : 'true'
+  }
+
   const emit = () => {
     const el = ref.current
-    if (el) onChange(parseEditorValue(el))
+    if (!el) return
+    syncEmpty(el)
+    onChange(parseEditorValue(el))
   }
 
   const rememberSelection = () => {
@@ -239,6 +247,7 @@ export function RichField({
         data-placeholder={placeholder}
         onFocus={() => {
           focusedRef.current = true
+          if (ref.current) syncEmpty(ref.current)
         }}
         onBlur={() => {
           focusedRef.current = false

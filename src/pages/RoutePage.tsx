@@ -258,7 +258,7 @@ export function RoutePage({
             <button
               onClick={onToggleAgent}
               className={cn('btn', agentOpen ? 'btn-line' : 'btn-accent')}
-              title={agentOpen ? '收起路线助手' : '让路线助手帮你拆/改路线'}
+              title={agentOpen ? '收起路线 Agent' : '打开路线 Agent（读 / 拆 / 改路线）'}
             >
               <span
                 data-agent-entry-icon
@@ -266,7 +266,7 @@ export function RoutePage({
               >
                 <RouteMark size={18} />
               </span>
-              <span className="hidden lg:inline">{agentOpen ? '收起助手' : '问助手'}</span>
+              <span className="hidden lg:inline">{agentOpen ? '收起 Agent' : 'Agent'}</span>
             </button>
             <button onClick={addGoal} className="btn btn-line" title="自己加一个目标">
               <Plus size={12} />

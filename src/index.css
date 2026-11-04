@@ -513,7 +513,7 @@
 }
 
 /* 正文内嵌图片：编辑态的小胶囊 + 只读缩略图 */
-.rich-field:empty::before {
+.rich-field[data-empty="true"]::before {
   content: attr(data-placeholder);
   color: var(--color-faint);
   pointer-events: none;
@@ -531,7 +531,7 @@
   color: var(--color-accent-ink);
   font-size: 9.5px;
   line-height: 12px;
-  vertical-align: middle;
+  vertical-align: 2px;
   cursor: zoom-in;
   user-select: none;
 }

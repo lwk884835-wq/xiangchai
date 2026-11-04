@@ -229,7 +229,7 @@ export function AgentRail({
             <RouteMark size={30} className="shadow-[0_2px_6px_rgba(23,22,26,.18)]" />
           </span>
           <div className="min-w-0">
-            <div className="truncate text-[13px] leading-tight font-semibold">路线助手</div>
+            <div className="truncate text-[13px] leading-tight font-semibold">路线 Agent</div>
             <div className="mt-[2px] truncate text-[10.5px] text-muted">只帮你拆/改路线</div>
           </div>
 

@@ -121,6 +121,8 @@ export function NodeDrawer({
   const draftKey = node ? `work-route-child-draft:${activeBoardId ?? 'none'}:${node.id}` : null
   /** 当前草稿已经为哪个节点载入过：防止切换节点时把上一个节点的值写进新节点的草稿 */
   const draftLoadedFor = useRef<string | null>(null)
+  /** 这次点击是不是从抽屉外面按下的：只有从外面按下、又在外边松开才关抽屉 */
+  const pressOnOverlayRef = useRef(false)
   const readDraft = (): ChildDraft | null => {
     if (!draftKey) return null
     try {
@@ -405,7 +407,15 @@ export function NodeDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-ink/20 anim-fade-in" onClick={closeDrawer}>
+    <div
+      className="fixed inset-0 z-40 flex justify-end bg-ink/20 anim-fade-in"
+      onMouseDown={(e) => {
+        pressOnOverlayRef.current = e.target === e.currentTarget
+      }}
+      onClick={() => {
+        if (pressOnOverlayRef.current) closeDrawer()
+      }}
+    >
       {menu &&
         (() => {
           const target = kids.find((k) => k.id === menu.nodeId)
@@ -503,6 +513,9 @@ export function NodeDrawer({
         })()}
       <aside
         className="anim-drawer-in flex h-full w-[min(420px,92vw)] flex-col border-l border-line bg-surface shadow-[-24px_0_60px_-24px_rgba(23,22,26,.35)]"
+        onMouseDown={() => {
+          pressOnOverlayRef.current = false
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex h-[56px] shrink-0 items-center gap-2 border-b border-line/70 px-5">
