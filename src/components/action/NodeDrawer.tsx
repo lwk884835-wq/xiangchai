@@ -16,29 +16,51 @@ import { RichField } from './RichField'
 export function NodeDrawer({
   nodes,
   nodeId,
+  boardId: boardIdProp,
   onClose,
   onChangeId,
 }: {
   nodes: ActionNode[]
   nodeId: string | null
+  /** 这个抽屉在改哪条路线：点链接进来的卡片时是源路线，默认当前路线 */
+  boardId?: string | null
   onClose: () => void
   onChangeId?: (id: string) => void
 }) {
-  const updateNode = useActions((s) => s.updateNode)
+  const rawUpdateNode = useActions((s) => s.updateNode)
   const activeBoardId = useActions((s) => s.activeBoardId)
+  const boardId = boardIdProp ?? activeBoardId
   // 注意：这里必须返回**同一个**空数组引用，不能写 `?? []`，
   // 否则每次 getSnapshot 都返回新数组，zustand 会认为状态变了，React 无限重渲染。
-  const collapsed = useActions((s) => s.collapsed[activeBoardId ?? ''] ?? EMPTY_IDS)
-  const toggleCollapse = useActions((s) => s.toggleCollapse)
-  const addNode = useActions((s) => s.addNode)
-  const detachNode = useActions((s) => s.detachNode)
-  const deleteNode = useActions((s) => s.deleteNode)
-  const reorderChild = useActions((s) => s.reorderChild)
-  const pasteNodes = useActions((s) => s.pasteNodes)
-  const toggleNode = useActions((s) => s.toggleNode)
-  const pinNode = useActions((s) => s.pinNode)
-  const moveNode = useActions((s) => s.moveNode)
+  const collapsed = useActions((s) => s.collapsed[boardId ?? ''] ?? EMPTY_IDS)
+  const rawToggleCollapse = useActions((s) => s.toggleCollapse)
+  const rawAddNode = useActions((s) => s.addNode)
+  const rawDetachNode = useActions((s) => s.detachNode)
+  const rawDeleteNode = useActions((s) => s.deleteNode)
+  const rawReorderChild = useActions((s) => s.reorderChild)
+  const rawPasteNodes = useActions((s) => s.pasteNodes)
+  const rawToggleNode = useActions((s) => s.toggleNode)
+  const rawPinNode = useActions((s) => s.pinNode)
+  const rawMoveNode = useActions((s) => s.moveNode)
   const toast = useUi((s) => s.showToast)
+
+  // 所有写操作都锁到抽屉对应的路线：不然打开链接卡片时，改的会变成当前路线
+  const updateNode: typeof rawUpdateNode = (id, patch, b) =>
+    rawUpdateNode(id, patch, b ?? boardId ?? undefined)
+  const toggleCollapse: typeof rawToggleCollapse = (id, b) =>
+    rawToggleCollapse(id, b ?? boardId ?? undefined)
+  const addNode: typeof rawAddNode = (node, b) => rawAddNode(node, b ?? boardId ?? undefined)
+  const detachNode: typeof rawDetachNode = (id, b) => rawDetachNode(id, b ?? boardId ?? undefined)
+  const deleteNode: typeof rawDeleteNode = (id, mode, b) =>
+    rawDeleteNode(id, mode, b ?? boardId ?? undefined)
+  const reorderChild: typeof rawReorderChild = (id, targetId, pos, b) =>
+    rawReorderChild(id, targetId, pos, b ?? boardId ?? undefined)
+  const pasteNodes: typeof rawPasteNodes = (opts) =>
+    rawPasteNodes({ ...opts, boardId: opts?.boardId ?? boardId ?? undefined })
+  const toggleNode: typeof rawToggleNode = (id, b) => rawToggleNode(id, b ?? boardId ?? undefined)
+  const pinNode: typeof rawPinNode = (id, pinned, b) =>
+    rawPinNode(id, pinned, b ?? boardId ?? undefined)
+  const moveNode: typeof rawMoveNode = (id, dir, b) => rawMoveNode(id, dir, b ?? boardId ?? undefined)
 
   const node = useMemo(
     () => nodes.find((n) => n.id === nodeId) ?? null,
@@ -118,7 +140,7 @@ export function NodeDrawer({
     atStart: boolean
     selectedChildId: string | null
   }
-  const draftKey = node ? `work-route-child-draft:${activeBoardId ?? 'none'}:${node.id}` : null
+  const draftKey = node ? `work-route-child-draft:${boardId ?? 'none'}:${node.id}` : null
   /** 当前草稿已经为哪个节点载入过：防止切换节点时把上一个节点的值写进新节点的草稿 */
   const draftLoadedFor = useRef<string | null>(null)
   /** 这次点击是不是从抽屉外面按下的：只有从外面按下、又在外边松开才关抽屉 */
@@ -225,13 +247,13 @@ export function NodeDrawer({
       if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable) return
       if (t?.closest('[contenteditable="true"]')) return
       e.preventDefault()
-      const n = pasteNodes({ parentId: node.id, boardId: activeBoardId ?? undefined })
+      const n = pasteNodes({ parentId: node.id, boardId: boardId ?? undefined })
       if (n) toast(`已粘贴 ${n} 张卡到「${node.title}」下面`)
       else toast('剪贴板是空的')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [node, activeBoardId, pasteNodes, toast])
+  }, [node, boardId, pasteNodes, toast])
 
   if (!node) return null
 
@@ -326,7 +348,7 @@ export function NodeDrawer({
     // 如果父节点是折叠的，先展开，不然加了看不见。
     // toggleCollapse(id, boardId) 两个参数别弄反——以前这里传反了，
     // 收起来的那条折叠标记写到了节点 id 名下，父节点根本不会展开。
-    if (collapsed.includes(node.id)) toggleCollapse(node.id, activeBoardId ?? undefined)
+    if (collapsed.includes(node.id)) toggleCollapse(node.id, boardId ?? undefined)
 
     /*
       串行怎么接，取决于抽屉里「点选了哪个子任务」：

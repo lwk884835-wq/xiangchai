@@ -112,7 +112,12 @@ export const NodeCard = memo(function NodeCard({
       onDragStart={(e) => onDragStart?.(node.id, e)}
       onDragEnd={onDragEnd}
       onDragOver={(e) => onDragOver?.(node.id, e)}
-      onDragLeave={(e) => onDragLeave?.(node.id, e)}
+      onDragLeave={(e) => {
+        // 在卡片内部从一个子元素移到另一个子元素时不要清高亮，否则拖到未变色卡片上会闪没
+        const next = e.relatedTarget as Node | null
+        if (next && e.currentTarget.contains(next)) return
+        onDragLeave?.(node.id, e)
+      }}
       onDrop={(e) => onDrop?.(node.id, e)}
       onContextMenu={(e) => onContextMenu?.(node.id, e)}
       className={cn(

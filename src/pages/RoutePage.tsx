@@ -40,7 +40,6 @@ export function RoutePage({
   const addNode = useActions((s) => s.addNode)
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
-  const setActiveBoard = useActions((s) => s.setActiveBoard)
   const toggleCollapse = useActions((s) => s.toggleCollapse)
   const history = useActions((s) => s.history)
   const undo = useActions((s) => s.undo)
@@ -48,6 +47,8 @@ export function RoutePage({
   const redo = useActions((s) => s.redo)
   const toast = useUi((s) => s.showToast)
   const [openId, setOpenId] = useState<string | null>(null)
+  /** 抽屉正在改哪条路线：链接卡片取源路线，普通卡片取当前路线 */
+  const [drawerBoardId, setDrawerBoardId] = useState<string | null>(null)
   /** 面板内搜索：找卡片 → 自动滚过去并闪一下 */
   const [search, setSearch] = useState('')
   const [matchIdx, setMatchIdx] = useState(0)
@@ -193,9 +194,13 @@ export function RoutePage({
   const openView = (id: string) => {
     const owner = owners.get(id)
     if (owner) {
-      setActiveBoard(owner.boardId)
+      // 链接进来的卡：不切走当前路线，就在这个面板上方打开源路线的二级菜单
+      setDrawerBoardId(owner.boardId)
       setOpenId(owner.origId)
-    } else setOpenId(id)
+    } else {
+      setDrawerBoardId(activeId)
+      setOpenId(id)
+    }
   }
   const toggleView = (id: string) => {
     const owner = owners.get(id)
@@ -388,9 +393,13 @@ export function RoutePage({
       <BoardList />
 
       <NodeDrawer
-        nodes={nodes}
+        nodes={boards.find((b) => b.id === drawerBoardId)?.nodes ?? nodes}
         nodeId={openId}
-        onClose={() => setOpenId(null)}
+        boardId={drawerBoardId ?? board?.id}
+        onClose={() => {
+          setOpenId(null)
+          setDrawerBoardId(null)
+        }}
         onChangeId={setOpenId}
       />
     </div>
