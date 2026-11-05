@@ -109,6 +109,11 @@ export const NodeCard = memo(function NodeCard({
     <div
       data-node-id={node.id}
       draggable={draggable}
+      style={
+        dropTarget
+          ? { outline: '2px solid var(--color-accent)', outlineOffset: 2 }
+          : undefined
+      }
       onDragStart={(e) => onDragStart?.(node.id, e)}
       onDragEnd={onDragEnd}
       onDragOver={(e) => onDragOver?.(node.id, e)}
