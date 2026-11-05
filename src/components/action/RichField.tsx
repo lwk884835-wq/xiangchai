@@ -52,6 +52,7 @@ export function RichField({
   disabled,
   onKeyDown,
   onBlur,
+  showImageButton = true,
 }: {
   value: string
   onChange: (v: string) => void
@@ -61,6 +62,8 @@ export function RichField({
   disabled?: boolean
   onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void
   onBlur?: () => void
+  /** 是否显示右下角的「插入图片」按钮；抽屉里习惯直接粘贴，可以关掉 */
+  showImageButton?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -356,14 +359,16 @@ export function RichField({
           if (f) void addImageFile(f)
         }}
       />
-      <button
-        type="button"
-        onClick={openPicker}
-        title="插入图片（也可以直接粘贴 / 拖进来）"
-        className="absolute right-1.5 bottom-1.5 flex h-[20px] w-[20px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
-      >
-        <ImagePlus size={12} />
-      </button>
+      {showImageButton && (
+        <button
+          type="button"
+          onClick={openPicker}
+          title="插入图片（也可以直接粘贴 / 拖进来）"
+          className="absolute right-1.5 bottom-1.5 flex h-[20px] w-[20px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <ImagePlus size={12} />
+        </button>
+      )}
 
       {hover && <HoverImagePreview src={hover.src} anchor={hover.anchor} />}
       {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}

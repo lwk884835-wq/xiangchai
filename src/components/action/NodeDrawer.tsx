@@ -651,6 +651,7 @@ export function NodeDrawer({
             <label className="label">行动目标和目的</label>
             <div className="mt-1">
               <RichField
+                showImageButton={false}
                 value={purpose}
                 onChange={setPurpose}
                 onBlur={() => updateNode(node.id, { purpose })}
@@ -670,6 +671,7 @@ export function NodeDrawer({
             <label className="label">具体怎么做</label>
             <div className="mt-1">
               <RichField
+                showImageButton={false}
                 value={detail}
                 onChange={setDetail}
                 onBlur={() => updateNode(node.id, { detail })}
@@ -689,6 +691,7 @@ export function NodeDrawer({
             <label className="label">其他备注</label>
             <div className="mt-1">
               <RichField
+                showImageButton={false}
                 value={notes}
                 onChange={setNotes}
                 onBlur={() => updateNode(node.id, { notes: notes.trim() })}
@@ -871,6 +874,7 @@ export function NodeDrawer({
                 className="field h-8 text-[12px]"
               />
               <RichField
+                showImageButton={false}
                 value={childPurpose}
                 onChange={setChildPurpose}
                 placeholder="目的（选填：为什么要做这个）"
@@ -884,6 +888,7 @@ export function NodeDrawer({
                 }}
               />
               <RichField
+                showImageButton={false}
                 value={childDetail}
                 onChange={setChildDetail}
                 placeholder="具体怎么做（选填：动作、产出物、怎么算完成）"
@@ -897,6 +902,7 @@ export function NodeDrawer({
                 }}
               />
               <RichField
+                showImageButton={false}
                 value={childNotes}
                 onChange={setChildNotes}
                 placeholder="其他批注（选填：想到什么记什么，不参与任务逻辑；可以插图）"

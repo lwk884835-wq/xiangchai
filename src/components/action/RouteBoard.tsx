@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, Link2, ListChecks, Plus, Trash2, Undo2 } from 'lucide-react'
+import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, Link2, ListChecks, Plus, Trash2, Undo2, Unlink } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -25,6 +25,8 @@ import { EmptyState } from '@/components/EmptyState'
 const EMPTY_IDS: Set<string> = new Set()
 const EMPTY_TITLES: Map<string, string> = new Map()
 const EMPTY_ANCHORS: Map<string, string> = new Map()
+type NodeOwner = { boardId: string; origId: string }
+const EMPTY_OWNERS: Map<string, NodeOwner> = new Map()
 
 const TRUNK = '#ddd5fb'
 const CURVE = '#b9aef5'
@@ -147,7 +149,6 @@ function Column({
   foreignAnchors: Map<string, string>
 }) {
   const isLinked = linkedIds.has(node.id)
-  const isForeign = foreignIds.has(node.id)
   const kids = useMemo(() => childrenOf(nodes, node.id), [nodes, node.id])
   const isCollapsed = collapsed.includes(node.id)
   const visible = isCollapsed ? [] : kids
@@ -180,16 +181,16 @@ function Column({
         collapsed={isCollapsed}
         progress={progress}
         onToggleCollapse={() => onToggleCollapse(node.id)}
-        draggable={!isForeign}
+        draggable
         linked={isLinked}
         flash={flashId === node.id}
         dragging={dnd.dragId === node.id}
         dropTarget={dnd.dropId === node.id}
-        onDragStart={isForeign ? undefined : dnd.onDragStart}
-        onDragEnd={isForeign ? undefined : dnd.onDragEnd}
-        onDragOver={isForeign ? undefined : dnd.onDragOver}
-        onDragLeave={isForeign ? undefined : dnd.onDragLeave}
-        onDrop={isForeign ? undefined : dnd.onDrop}
+        onDragStart={dnd.onDragStart}
+        onDragEnd={dnd.onDragEnd}
+        onDragOver={dnd.onDragOver}
+        onDragLeave={dnd.onDragLeave}
+        onDrop={dnd.onDrop}
         onContextMenu={onCardContextMenu}
       />
       {visible.length > 0 && (
@@ -244,6 +245,7 @@ export const RouteBoard = memo(function RouteBoard({
   foreignIds,
   linkTitles,
   foreignAnchors,
+  owners,
   highlight,
 }: {
   nodes: ActionNode[]
@@ -259,6 +261,8 @@ export const RouteBoard = memo(function RouteBoard({
   linkTitles?: Map<string, string>
   /** 投影卡 id → 源路线里的链接锚点 id（用于「移除链接分支」） */
   foreignAnchors?: Map<string, string>
+  /** 视图 id → 它真正属于哪条路线、原节点 id（拖拽/删除跨路线用） */
+  owners?: Map<string, NodeOwner>
   /** 面板内搜索：滚到这张卡并闪一下 */
   highlight?: { id: string; nonce: number }
 }) {
@@ -291,6 +295,10 @@ export const RouteBoard = memo(function RouteBoard({
   const foreignSet = foreignIds ?? EMPTY_IDS
   const titleMap = linkTitles ?? EMPTY_TITLES
   const anchorMap = foreignAnchors ?? EMPTY_ANCHORS
+  const ownerMap = owners ?? EMPTY_OWNERS
+  const activeBoardId = useActions((s) => s.activeBoardId)
+  const ownerOf = (id: string): NodeOwner | null =>
+    ownerMap.get(id) ?? (activeBoardId ? { boardId: activeBoardId, origId: id } : null)
   /** 右键菜单：nodeId 为空 = 点在空白画布上 */
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
   /** 菜单实际尺寸量出来后，再夹进视口，避免贴边时弹到屏幕外 */
@@ -404,20 +412,11 @@ export const RouteBoard = memo(function RouteBoard({
       const from = e.dataTransfer.getData('application/x-route-node') || dragIdRef.current
       clearDrag()
       if (!from || from === id) return
-      // 不能拖到自己的子任务里（会成环）
-      const isDescendant = (() => {
-        let cur = nodes.find((n) => n.id === id)
-        while (cur?.parentId) {
-          if (cur.parentId === from) return true
-          cur = nodes.find((n) => n.id === cur!.parentId)
-        }
-        return false
-      })()
-      if (isDescendant) {
-        toast('不能拖到它自己的子任务下面')
-        return
-      }
-      moveSubtree(from, id)
+      const fromOwner = ownerOf(from)
+      const toOwner = ownerOf(id)
+      if (!fromOwner || !toOwner || fromOwner.origId === toOwner.origId) return
+      // 用真实节点 id：同一条源路线内是普通拖拽，跨路线时 store 自动走 moveSubtreeToBoard
+      moveSubtree(fromOwner.origId, toOwner.origId)
       toast('已把整串接到这张卡片后面')
     },
   }
@@ -773,31 +772,69 @@ export const RouteBoard = memo(function RouteBoard({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {target && linkAnchorId ? (
-                <>
-                  <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">
-                    {target.title}
-                  </div>
-                  <button
-                    onClick={() => {
-                      removeNode(linkAnchorId)
-                      toast('已移除这条链接分支')
-                      setCtxMenu(null)
-                    }}
-                    className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
-                  >
-                    <Trash2 size={12} className="mt-[3px] shrink-0" />
-                    <span>
-                      移除这条链接分支
-                      <span className="mt-0.5 block text-[10px] leading-snug text-faint">
-                        只解除链接，不动原路线
-                      </span>
-                    </span>
-                  </button>
-                  <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
-                    点卡片可以跳到原路线里改
-                  </p>
-                </>
+              {target && linkAnchorId && ownerMap.get(target.id) ? (
+                (() => {
+                  const own = ownerMap.get(target.id)!
+                  return (
+                    <>
+                      <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">
+                        {target.title} · 链接卡
+                      </div>
+                      <button
+                        onClick={() => {
+                          deleteNode(own.origId, 'only', own.boardId)
+                          toast('已删掉这条，后面一步接回前一步')
+                          setCtxMenu(null)
+                        }}
+                        className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Trash2 size={12} className="mt-[3px] shrink-0" />
+                        <span>
+                          删掉这条（子任务一起删）
+                          <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                            只删源路线里的这一张，链接还在
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          deleteNode(own.origId, 'cascade', own.boardId)
+                          toast('已删掉它和后面整串')
+                          setCtxMenu(null)
+                        }}
+                        className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Trash2 size={12} className="mt-[3px] shrink-0" />
+                        <span>
+                          删掉它和后面整串
+                          <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                            后面的步骤不会保留
+                          </span>
+                        </span>
+                      </button>
+                      <div className="my-1 h-px bg-line/70" />
+                      <button
+                        onClick={() => {
+                          removeNode(linkAnchorId)
+                          toast('已移除整条链接分支')
+                          setCtxMenu(null)
+                        }}
+                        className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Unlink size={12} className="mt-[3px] shrink-0" />
+                        <span>
+                          移除整条链接分支
+                          <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                            源路线保留，只从当前面板撤掉这条链接
+                          </span>
+                        </span>
+                      </button>
+                      <p className="px-2 pt-1 pb-1.5 text-[10px] leading-relaxed text-faint">
+                        卡片可以直接拖动，改动会写回源路线
+                      </p>
+                    </>
+                  )
+                })()
               ) : target ? (
                 <>
                   <div className="truncate px-2 pt-1 pb-1.5 text-[10.5px] text-faint">

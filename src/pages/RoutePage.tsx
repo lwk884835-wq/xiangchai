@@ -383,6 +383,7 @@ export function RoutePage({
                 linkedIds={linkedIds}
                 foreignIds={foreignIds}
                 foreignAnchors={foreignAnchors}
+                owners={owners}
                 highlight={highlight}
               />
             </div>
