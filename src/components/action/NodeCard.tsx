@@ -3,6 +3,8 @@ import { Check, ChevronDown, ChevronRight, MessageSquareText, Pin } from 'lucide
 import type { ActionNode } from '@/types'
 import { cn } from '@/lib/cn'
 import { useActions } from '@/store/actions'
+import { useUi } from '@/store/ui'
+import { codeOf, copyText } from '@/lib/code'
 import { RichText } from './RichText'
 
 /**
@@ -87,6 +89,8 @@ export const NodeCard = memo(function NodeCard({
   const images = useActions((s) => s.images)
   const dropRoot = node.dropRoot === true
   const dropped = node.dropped === true
+  const toast = useUi((s) => s.showToast)
+  const code = codeOf(node.id)
   const hasNotes = !!node.notes?.trim()
   const titleRef = useRef<HTMLDivElement>(null)
   /** 图标排法：单行横排；会换行的卡用竖排 + 文字环绕，右侧空间不浪费 */
@@ -254,6 +258,26 @@ export const NodeCard = memo(function NodeCard({
           </p>
         )}
       </div>
+
+      <button
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.stopPropagation()
+          void copyText(`#${code}`).then((ok) =>
+            toast(ok ? `已复制卡片码 #${code}` : '复制失败：浏览器不给剪贴板权限'),
+          )
+        }}
+        title={`复制卡片码 #${code}（粘给 Agent 指这张卡）`}
+        className={cn(
+          'absolute -top-[7px] right-2 z-20 flex h-[15px] items-center rounded-full border border-line/70 bg-surface px-1.5',
+          'font-mono text-[9.5px] tracking-[0.06em] text-muted shadow-e1',
+          'pointer-events-none opacity-0 transition-opacity duration-150',
+          'group-hover:pointer-events-auto group-hover:opacity-100 hover:text-ink',
+        )}
+      >
+        #{code}
+      </button>
 
       {childCount > 0 && onToggleCollapse && (
         <button

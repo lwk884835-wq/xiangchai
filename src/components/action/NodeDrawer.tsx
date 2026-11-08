@@ -7,6 +7,7 @@ import { useUi } from '@/store/ui'
 /** 稳定的空数组：selector 里返回新数组会导致无限重渲染 */
 const EMPTY_IDS: string[] = []
 import { cn } from '@/lib/cn'
+import { codeOf, copyText } from '@/lib/code'
 import { RichField } from './RichField'
 
 /**
@@ -542,6 +543,18 @@ export function NodeDrawer({
       >
         <header className="flex h-[56px] shrink-0 items-center gap-2 border-b border-line/70 px-5">
           <span className="chip">第 {node.level} 层</span>
+          <button
+            onClick={() => {
+              const code = codeOf(node.id)
+              void copyText(`#${code}`).then((ok) =>
+                toast(ok ? `已复制卡片码 #${code}` : '复制失败：浏览器不给剪贴板权限'),
+              )
+            }}
+            title="复制卡片码（粘给 Agent 指这张卡）"
+            className="chip font-mono text-[10.5px] tracking-[0.06em] text-muted transition-colors hover:bg-surface-3 hover:text-ink"
+          >
+            #{codeOf(node.id)}
+          </button>
           <button
             onClick={() => pinNode(node.id, !node.pinned)}
             className={cn(

@@ -1,6 +1,66 @@
-import type { ActionBoard } from '@/types'
-import { actionGraphText, actionNodeContext, useActions } from '@/store/actions'
+import type { ActionBoard, ActionNode } from '@/types'
+import { actionNodeContext, useActions } from '@/store/actions'
 import { getSkill, skillIndexLines, SKILLS } from '@/skills/registry'
+import { CODE_LEN, codeOf, normCode } from '@/lib/code'
+
+/**
+ * 给模型看的缩进树，每行前面带卡片码。
+ * 不复用 store 里那份 actionGraphText：那份是「我现在在哪 / 导出」用的干净文本，不带码。
+ */
+function graphWithCodes(nodes: ActionNode[], maxDepth = 5): string {
+  if (!nodes.length) return ''
+  const kidsOf = (pid: string | null) => nodes.filter((n) => n.parentId === pid)
+  const lines: string[] = []
+  const walk = (n: ActionNode, depth: number, prefix: string) => {
+    const kids = kidsOf(n.id)
+    const done = kids.length
+      ? `${kids.filter((k) => k.done).length}/${kids.length}`
+      : n.done
+        ? '已完成'
+        : ''
+    lines.push(
+      `${'  '.repeat(depth)}${prefix}#${codeOf(n.id)} ${n.title}${
+        n.branch ? `〔${n.branch}〕` : ''
+      }${done ? `（${done}）` : ''}${n.pinned ? ' ★重点' : ''}`,
+    )
+    if (depth >= maxDepth) {
+      if (kids.length) lines.push(`${'  '.repeat(depth + 1)}… 还有 ${kids.length} 个子任务`)
+      return
+    }
+    kids.forEach((k, i) => walk(k, depth + 1, `${i + 1}.`))
+  }
+  kidsOf(null).forEach((r, i) => walk(r, 0, `${i + 1}.`))
+  return lines.join('\n')
+}
+
+/** 指代用的一行：`#9NVDA 标题` */
+const refOf = (n: ActionNode) => `#${codeOf(n.id)} ${n.title}`
+
+/** 用户/Agent 给的 key → 路线：先按 5 位码，再按 id / 名字 / 模糊名字 */
+export function resolveBoard(boards: ActionBoard[], key: string): ActionBoard | null {
+  if (!key) return null
+  const want = normCode(key)
+  const byCode = want.length === CODE_LEN ? boards.find((b) => codeOf(b.id) === want) : undefined
+  return (
+    byCode ??
+    boards.find((b) => b.id === key) ??
+    boards.find((b) => b.jobTitle === key || b.label === key) ??
+    boards.find((b) => b.jobTitle.includes(key) || (b.label || '').includes(key)) ??
+    null
+  )
+}
+
+/** 用户/Agent 给的 key → 卡片：先按 5 位码，再按 id、标题包含 */
+export function resolveNode(nodes: ActionNode[], key: string): ActionNode | null {
+  const want = normCode(key)
+  const byCode = want.length === CODE_LEN ? nodes.find((n) => codeOf(n.id) === want) : undefined
+  return (
+    byCode ??
+    nodes.find((n) => n.id === key) ??
+    nodes.find((n) => n.title.includes(key)) ??
+    null
+  )
+}
 
 /** 给模型看的工具清单（OpenAI function calling 格式） */
 export const TOOLS: unknown[] = [
@@ -13,7 +73,10 @@ export const TOOLS: unknown[] = [
       parameters: {
         type: 'object',
         properties: {
-          nodeId: { type: 'string', description: '要定位的节点 id 或标题；不填就返回整棵树' },
+          nodeId: {
+            type: 'string',
+            description: '要定位的节点：5 位卡片码（#9NVDA）、id 或标题；不填就返回整棵树',
+          },
         },
       },
     },
@@ -39,7 +102,7 @@ export const TOOLS: unknown[] = [
           board: {
             type: 'string',
             description:
-              '要改哪条路线（名字）。不填就是当前那条；填了但不存在会新建一条——换方向/另起一条路线时用它，不要复制旧路线',
+              '要改哪条路线：名字 / id / 5 位路线码。不填就是当前那条；填了但不存在会新建一条——换方向/另起一条路线时用它，不要复制旧路线',
           },
           deleteMode: {
             type: 'string',
@@ -53,7 +116,10 @@ export const TOOLS: unknown[] = [
             items: {
               type: 'object',
               properties: {
-                id: { type: 'string', description: 'update/delete/focus 时用：节点 id 或标题' },
+                id: {
+                  type: 'string',
+                  description: 'update/delete/focus 时用：5 位卡片码（#9NVDA）、节点 id 或标题',
+                },
                 title: {
                   type: 'string',
                   description:
@@ -100,7 +166,7 @@ export const TOOLS: unknown[] = [
           },
           board: {
             type: 'string',
-            description: '目标路线：名字 / id / 标签（模糊匹配）。op=list 时可省略',
+            description: '目标路线：名字 / id / 标签 / 5 位路线码。op=list 时可省略',
           },
           title: { type: 'string', description: 'create/rename 用的路线名' },
           label: { type: 'string', description: '可选的区分标签，比如「主计划」' },
@@ -229,19 +295,25 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
         label: '读路线',
         result: JSON.stringify({
           ok: true,
-          board: { title: board.jobTitle, label: board.label },
-          boards: st.boards.map((b) => ({ title: b.jobTitle, nodes: b.nodes.length, archived: b.archived })),
+          board: { code: codeOf(board.id), title: board.jobTitle, label: board.label },
+          boards: st.boards.map((b) => ({
+            code: codeOf(b.id),
+            title: b.jobTitle,
+            nodes: b.nodes.length,
+            archived: b.archived,
+          })),
           nodes: nodes.length,
-          graph: actionGraphText(nodes, 5),
+          graph: graphWithCodes(nodes, 5),
+          hint: '每行开头的 #XXXXX 是卡片码，可以直接当 nodeId / id 参数用',
         }),
         note: `${board.jobTitle} · ${nodes.length} 个节点`,
       }
     }
-    const target = nodes.find((n) => n.id === key) ?? nodes.find((n) => n.title.includes(key))
+    const target = resolveNode(nodes, key)
     if (!target) {
       return {
         label: '读路线',
-        result: JSON.stringify({ ok: false, reason: '没找到这个任务', available: nodes.slice(0, 20).map((n) => n.title) }),
+        result: JSON.stringify({ ok: false, reason: '没找到这个任务', available: nodes.slice(0, 20).map(refOf) }),
         note: '没找到',
       }
     }
@@ -250,14 +322,15 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
       label: '读路线',
       result: JSON.stringify({
         ok: true,
+        code: codeOf(target.id),
         node: target.title,
         level: target.level,
-        parent: ctx.parent?.title ?? null,
-        prev: ctx.prev.map((n) => n.title),
-        next: ctx.next.map((n) => n.title),
-        parallel: ctx.parallel.map((n) => n.title),
-        children: ctx.children.map((n) => n.title),
-        graph: actionGraphText(nodes, 5),
+        parent: ctx.parent ? refOf(ctx.parent) : null,
+        prev: ctx.prev.map(refOf),
+        next: ctx.next.map(refOf),
+        parallel: ctx.parallel.map(refOf),
+        children: ctx.children.map(refOf),
+        graph: graphWithCodes(nodes, 5),
       }),
       note: `「${target.title}」在第 ${target.level} 层`,
     }
@@ -288,11 +361,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
     let createdBoard = false
     let board: ActionBoard | null = null
     if (boardKey) {
-      board =
-        st.boards.find((b) => b.id === boardKey) ??
-        st.boards.find((b) => b.jobTitle === boardKey || b.label === boardKey) ??
-        st.boards.find((b) => b.jobTitle.includes(boardKey) || b.label.includes(boardKey)) ??
-        null
+      board = resolveBoard(st.boards, boardKey)
       if (!board) {
         const id = st.addBoard({ jobTitle: boardKey, jobCity: '', label: '' })
         board = useActions.getState().boards.find((b) => b.id === id) ?? null
@@ -316,8 +385,8 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
     const boardId = board.id
     const boardInfo = { id: board.id, title: board.jobTitle, created: createdBoard }
     const liveNodes = () => useActions.getState().boards.find((b) => b.id === boardId)?.nodes ?? []
-    const findNode = (key: string) => liveNodes().find((n) => n.id === key || n.title.includes(key)) ?? null
-    const graphNow = () => actionGraphText(liveNodes(), 5)
+    const findNode = (key: string) => resolveNode(liveNodes(), key)
+    const graphNow = () => graphWithCodes(liveNodes(), 5)
     const linkSerial = (id: string, parentId: string | null, branch: string) => {
       const siblings = liveNodes().filter(
         (n) => n.id !== id && n.parentId === parentId && (n.branch || '') === branch,
@@ -551,15 +620,11 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
     const op = String(args.op ?? 'list')
     const st = useActions.getState()
     const key = String(args.board ?? '').trim()
-    const board = key
-      ? (st.boards.find((b) => b.id === key) ??
-        st.boards.find((b) => b.jobTitle === key || b.label === key) ??
-        st.boards.find((b) => b.jobTitle.includes(key) || b.label.includes(key)) ??
-        null)
-      : null
+    const board = key ? resolveBoard(st.boards, key) : null
     const list = () => {
       const cur = useActions.getState()
       return cur.boards.map((b) => ({
+        code: codeOf(b.id),
         title: b.jobTitle,
         label: b.label,
         city: b.jobCity,
@@ -631,8 +696,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
       let fromBoard: (typeof cur.boards)[number] | null = null
       let node: (typeof cur.boards)[number]['nodes'][number] | null = null
       for (const bd of cur.boards) {
-        const hit =
-          bd.nodes.find((n) => n.id === id) ?? bd.nodes.find((n) => n.title.includes(id))
+        const hit = resolveNode(bd.nodes, id)
         if (hit) {
           fromBoard = bd
           node = hit
@@ -643,17 +707,10 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
         failed.push(`${id}（没找到）`)
         continue
       }
-      const findNodeIn = (board: ActionBoard) =>
-        board.nodes.find((n) => n.id === targetKey) ??
-        board.nodes.find((n) => n.title.includes(targetKey)) ??
-        null
+      const findNodeIn = (board: ActionBoard) => resolveNode(board.nodes, targetKey)
 
       if (boardKey) {
-        const toBoard =
-          cur.boards.find((b) => b.id === boardKey) ??
-          cur.boards.find((b) => b.jobTitle === boardKey || b.label === boardKey) ??
-          cur.boards.find((b) => b.jobTitle.includes(boardKey) || b.label.includes(boardKey)) ??
-          null
+        const toBoard = resolveBoard(cur.boards, boardKey)
         if (!toBoard) {
           failed.push(`${id}（目标路线没找到）`)
           continue
@@ -695,7 +752,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
         moved,
         failed,
         board: active?.jobTitle,
-        graph: active ? actionGraphText(active.nodes, 5) : '',
+        graph: active ? graphWithCodes(active.nodes, 5) : '',
       }),
       note: `搬了 ${moved} 次${failed.length ? `；${failed.length} 次没成` : ''}`,
     }
@@ -710,10 +767,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
     for (const item of items) {
       const key = String(item.id ?? '').trim()
       const desired = item.done === true
-      const target =
-        active?.nodes.find((n) => n.id === key) ??
-        active?.nodes.find((n) => n.title.includes(key)) ??
-        null
+      const target = resolveNode(active?.nodes ?? [], key)
       if (!target) {
         failed.push(key)
         continue
@@ -772,7 +826,7 @@ export function buildSystemPrompt(): string {
   const board = st.boards.find((b) => b.id === st.activeBoardId) ?? st.boards[0]
   const nodes = board?.nodes ?? []
   const pinned = nodes.filter((n) => n.pinned).map((n) => n.title)
-  const graph = board ? actionGraphText(nodes, 5) : ''
+  const graph = board ? graphWithCodes(nodes, 5) : ''
   const done = nodes.filter((n) => n.done).length
   const focus = st.focusItems.filter((f) => !f.done).map((f) => f.text)
 
@@ -797,6 +851,7 @@ ${board ? `- 路线全貌（缩进即层级）：\n${graph || '（空）'}` : ''
 - 层级只能靠 parentId：1=目标，2=并行的线，3+=具体动作；一次 create 可以建整棵树（父在前，parentId 写父节点标题）
 - 任务名写成能执行的动作（动词开头、有交付物），不要口号/提醒
 - 用户贴缩进大纲时，缩进就是层级，照建，别拍平
+- 路线和卡片都有 5 位码（#9NVDA 这种）：工具参数里 board / nodeId / id 可以直接填码；回话提到具体卡片时带上码，用户能照着指
 - 只改层级/挪位置用 update 传 parentId，别整树 replace；换方向用 board 新建一条，别复制旧路线
 - 删任务默认用 deleteMode="only"（后面的步骤会自动接回前一步）；只有用户明确说「后面也不要了」才用 cascade
 - 搬卡片：position=child 会连它后面的整串一起搬；只想挪这一个用 before/after

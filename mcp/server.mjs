@@ -29,7 +29,8 @@ server.registerTool(
   'list_routes',
   {
     title: '列出所有路线',
-    description: '列出所有行动路线（计划）的标题、节点数、是否归档、哪条是当前路线。',
+    description:
+      '列出所有行动路线（计划）的标题、5 位路线码、节点数、是否归档、哪条是当前路线。路线码可以直接填进别的工具的 board 参数。',
     inputSchema: {},
   },
   async () => text({ boards: core.listRoutes(core.load()), dataFile: core.dataFile }),
@@ -40,10 +41,11 @@ server.registerTool(
   {
     title: '读路线结构',
     description:
-      '读一条路线的层级树（缩进文本），或某个任务在树里的位置（父级/上一步/下一步/同层并行/子任务）。不传 board 就是当前路线。',
+      '读一条路线的层级树（缩进文本），或某个任务在树里的位置（父级/上一步/下一步/同层并行/子任务）。不传 board 就是当前路线。' +
+      '每行开头的 #XXXXX 是卡片码，可以直接拿来当 node/id 参数；返回里也带 boardCode。',
     inputSchema: {
-      board: z.string().optional().describe('路线名/id/标签；不传=当前路线'),
-      node: z.string().optional().describe('任务 id 或标题；传了就看这个任务的位置'),
+      board: z.string().optional().describe('路线名/id/标签/5 位路线码；不传=当前路线'),
+      node: z.string().optional().describe('任务 id、标题或 5 位卡片码；传了就看这个任务的位置'),
     },
   },
   async (args) => {
@@ -53,13 +55,44 @@ server.registerTool(
 )
 
 server.registerTool(
+  'find_code',
+  {
+    title: '按码找（路线 / 卡片）',
+    description:
+      '用户给了一个码（#9NVDA 这种，5 位）时用：返回它是哪条路线里的哪张卡、第几层、标题、目的/做法/备注、从根到它的路径。' +
+      '能一次查多个（空格或逗号分开）。找不到会放在 missing 里。',
+    inputSchema: {
+      code: z.string().describe('5 位码，可带 #；多个用空格/逗号分开'),
+      board: z.string().optional().describe('只在某条路线里找（名字/id/码）'),
+    },
+  },
+  async (args) => text({ dataFile: core.dataFile, ...core.findByCode(core.load(), args) }),
+)
+
+server.registerTool(
+  'list_codes',
+  {
+    title: '拿全部码（路线 + 卡片）',
+    description:
+      '一次返回所有路线码和卡片码（可只取一条路线、或按标题过滤）。' +
+      '需要快速定位、核对用户说的「某个码」时，比把整棵树读进来省 token。',
+    inputSchema: {
+      board: z.string().optional().describe('只要这条路线的码'),
+      q: z.string().optional().describe('标题里包含这段文字才返回'),
+    },
+  },
+  async (args) => text({ dataFile: core.dataFile, ...core.listCodes(core.load(), args) }),
+)
+
+server.registerTool(
   'apply_plan_ops',
   {
     title: '改路线（建/改/删/重点/独立成线/整树重排）',
     description:
       '改行动路线。op=create 建节点（可一次建整棵树，子节点 parentId 写父节点标题）；update 改内容/父级/层级；' +
       'delete 删节点（deleteMode=only 默认：子任务一起删、后面一步自动接回前一步；cascade=这条和后面整串一起删）；' +
-      'focus 定/取消重点；detach 把串行链上的任务独立成一条线；replace 整条路线重排。',
+      'focus 定/取消重点；detach 把串行链上的任务独立成一条线；replace 整条路线重排。' +
+      '节点可以用 5 位卡片码（#9NVDA）指代，用户贴码时直接用。',
     inputSchema: {
       op: z.enum(['create', 'update', 'delete', 'focus', 'detach', 'replace']),
       board: z.string().optional().describe('要改哪条路线；不填=当前路线；填了不存在会新建'),
@@ -68,7 +101,7 @@ server.registerTool(
         .array(
           z
             .object({
-              id: z.string().optional().describe('update/delete/focus/detach 用：节点 id 或标题'),
+              id: z.string().optional().describe('update/delete/focus/detach 用：节点 id、标题或 5 位卡片码'),
               title: z.string().optional(),
               purpose: z.string().optional().describe('行动目标/目的'),
               detail: z.string().optional().describe('具体怎么做'),
@@ -101,8 +134,8 @@ server.registerTool(
     inputSchema: {
       moves: z.array(
         z.object({
-          id: z.string().describe('要搬的任务：id 或标题'),
-          target: z.string().optional().describe('目标任务：id 或标题'),
+          id: z.string().describe('要搬的任务：id、标题或 5 位卡片码'),
+          target: z.string().optional().describe('目标任务：id、标题或 5 位卡片码'),
           board: z.string().optional().describe('目标路线：名字/id（跨路线时用）'),
           position: z.enum(['child', 'before', 'after']).optional(),
         }),
@@ -120,7 +153,7 @@ server.registerTool(
     inputSchema: {
       nodes: z.array(
         z.object({
-          id: z.string().describe('任务 id 或标题'),
+          id: z.string().describe('任务 id、标题或 5 位卡片码'),
           done: z.boolean(),
         }),
       ),
@@ -137,7 +170,7 @@ server.registerTool(
       '新建 / 改名 / 归档 / 恢复 / 删除 / 切换当前路线 / 列出路线 / 设置所属文件夹（op=folder）。',
     inputSchema: {
       op: z.enum(['list', 'create', 'rename', 'archive', 'restore', 'delete', 'select', 'folder']),
-      board: z.string().optional().describe('目标路线：名字/id/标签'),
+      board: z.string().optional().describe('目标路线：名字/id/标签/5 位路线码'),
       title: z.string().optional(),
       label: z.string().optional(),
       city: z.string().optional(),

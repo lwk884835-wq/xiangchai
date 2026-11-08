@@ -6,6 +6,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import { CODE_LEN, codeOf, normCode } from './code.mjs'
 
 /**
  * 数据文件优先级：
@@ -53,8 +54,28 @@ export function save(state) {
 
 /* ---------- 查询 ---------- */
 
+/**
+ * 按码找：`#9NVDA` / `9nvda` / 全角＃ 都认。
+ * 只在传进来的东西**确实像 5 位码**时才按码匹配；像码但其实没人用它，会继续走标题匹配。
+ */
+const byCode = (items, key) => {
+  const want = normCode(key)
+  if (want.length !== CODE_LEN) return []
+  return items.filter((x) => codeOf(x.id) === want)
+}
+
+const ambiguous = (what, key, hits, labelOf) =>
+  new Error(
+    `码 #${normCode(key)} 在${what}里对上了 ${hits.length} 个：` +
+      hits.map((h) => `${codeOf(h.id)}（${labelOf(h)}）`).join('、') +
+      '。请改用更完整的 id 或标题。',
+  )
+
 export const findBoard = (state, key) => {
   if (!key) return state.boards.find((b) => b.id === state.activeBoardId) ?? state.boards[0] ?? null
+  const hitCode = byCode(state.boards, key)
+  if (hitCode.length === 1) return hitCode[0]
+  if (hitCode.length > 1) throw ambiguous('路线', key, hitCode, (b) => b.jobTitle)
   return (
     state.boards.find((b) => b.id === key) ??
     state.boards.find((b) => b.jobTitle === key || b.label === key) ??
@@ -83,10 +104,16 @@ const ensureBoard = (state, key) => {
   return { board, created: true }
 }
 
-const findNode = (board, key) =>
-  board?.nodes.find((n) => n.id === key) ??
-  board?.nodes.find((n) => n.title.includes(key)) ??
-  null
+const findNode = (board, key) => {
+  const hitCode = byCode(board?.nodes ?? [], key)
+  if (hitCode.length === 1) return hitCode[0]
+  if (hitCode.length > 1) throw ambiguous('这条路线', key, hitCode, (n) => n.title)
+  return (
+    board?.nodes.find((n) => n.id === key) ??
+    board?.nodes.find((n) => n.title.includes(key)) ??
+    null
+  )
+}
 
 const kidsOf = (nodes, pid) => nodes.filter((n) => n.parentId === pid)
 const chainOf = (nodes, node) =>
@@ -129,7 +156,7 @@ export function graphText(board, maxDepth = 6) {
     const pin = n.pinned ? '★ ' : ''
     const drop = n.dropped ? '⊘ ' : ''
     const link = n.linkBoardId ? '↪ ' : ''
-    lines.push(`${pad}- ${link}${drop}${pin}${done}${tag}${n.title}`)
+    lines.push(`${pad}- #${codeOf(n.id)} ${link}${drop}${pin}${done}${tag}${n.title}`)
     const block = (label, value) => {
       if (!value) return
       const text = plainRich(value).trim()
@@ -149,6 +176,7 @@ export function graphText(board, maxDepth = 6) {
 
 export function listRoutes(state) {
   return state.boards.map((b) => ({
+    code: codeOf(b.id),
     title: b.jobTitle,
     id: b.id,
     label: b.label,
@@ -160,43 +188,161 @@ export function listRoutes(state) {
   }))
 }
 
+/** 指代用的一行：`#9NVDA 标题` —— Agent 回话、用户引用都用这个 */
+const ref = (n) => `#${codeOf(n.id)} ${n.title}`
+
+/** 某张卡在树里的路径（根 → 它自己） */
+const pathOf = (nodes, node) => {
+  const out = []
+  let cur = node
+  let guard = 0
+  while (cur && guard++ < 64) {
+    out.unshift({ code: codeOf(cur.id), title: cur.title })
+    cur = cur.parentId ? nodes.find((n) => n.id === cur.parentId) : null
+  }
+  return out
+}
+
 export function readRoute(state, { board: boardKey, node: nodeKey } = {}) {
-  const board = boardKey ? findBoard(state, boardKey) : activeBoard(state)
-  if (!board) return { ok: false, reason: '没有路线' }
-  if (nodeKey) {
-    const node = findNode(board, nodeKey)
-    if (!node) return { ok: false, reason: '没找到这个任务', graph: graphText(board) }
-    const chain = chainOf(board.nodes, node)
-    const idx = chain.findIndex((n) => n.id === node.id)
-    const parent = board.nodes.find((n) => n.id === node.parentId) ?? null
+  try {
+    const board = boardKey ? findBoard(state, boardKey) : activeBoard(state)
+    if (!board) return { ok: false, reason: '没有路线' }
+    const boardInfo = { code: codeOf(board.id), title: board.jobTitle, label: board.label }
+    if (nodeKey) {
+      const node = findNode(board, nodeKey)
+      if (!node) return { ok: false, reason: '没找到这个任务', graph: graphText(board) }
+      const chain = chainOf(board.nodes, node)
+      const idx = chain.findIndex((n) => n.id === node.id)
+      const parent = board.nodes.find((n) => n.id === node.parentId) ?? null
+      return {
+        ok: true,
+        board: board.jobTitle,
+        boardCode: boardInfo.code,
+        code: codeOf(node.id),
+        node: node.title,
+        level: node.level,
+        path: pathOf(board.nodes, node).map((p) => `#${p.code} ${p.title}`),
+        purpose: plainRich(node.purpose ?? ''),
+        detail: plainRich(node.detail ?? ''),
+        notes: plainRich(node.notes ?? ''),
+        dropped: node.dropped === true,
+        dropRoot: node.dropRoot === true,
+        linkBoardId: node.linkBoardId ?? null,
+        parent: parent ? ref(parent) : null,
+        prev: idx > 0 ? [ref(chain[idx - 1])] : [],
+        next: idx < chain.length - 1 ? [ref(chain[idx + 1])] : [],
+        parallel: kidsOf(board.nodes, node.parentId)
+          .filter((n) => n.id !== node.id && (n.branch || '') !== (node.branch || ''))
+          .map(ref),
+        children: kidsOf(board.nodes, node.id).map(ref),
+        graph: graphText(board),
+      }
+    }
     return {
       ok: true,
       board: board.jobTitle,
-      node: node.title,
-      level: node.level,
-      purpose: plainRich(node.purpose ?? ''),
-      detail: plainRich(node.detail ?? ''),
-      notes: plainRich(node.notes ?? ''),
-      dropped: node.dropped === true,
-      dropRoot: node.dropRoot === true,
-      linkBoardId: node.linkBoardId ?? null,
-      parent: parent?.title ?? null,
-      prev: idx > 0 ? [chain[idx - 1].title] : [],
-      next: idx < chain.length - 1 ? [chain[idx + 1].title] : [],
-      parallel: kidsOf(board.nodes, node.parentId)
-        .filter((n) => n.id !== node.id && (n.branch || '') !== (node.branch || ''))
-        .map((n) => n.title),
-      children: kidsOf(board.nodes, node.id).map((n) => n.title),
+      code: boardInfo.code,
+      label: board.label,
+      nodes: board.nodes.length,
+      boards: listRoutes(state),
       graph: graphText(board),
+      hint: '每行开头的 #XXXXX 是卡片码：可以直接把它填进 board / node / id 参数',
     }
+  } catch (err) {
+    return { ok: false, reason: String(err?.message ?? err) }
   }
-  return {
-    ok: true,
-    board: board.jobTitle,
-    label: board.label,
-    nodes: board.nodes.length,
-    boards: listRoutes(state),
-    graph: graphText(board),
+}
+
+/* ---------- 码：解析 / 全表 ---------- */
+
+/** 码 → 是路线还是哪条路线里的哪张卡（一次可查多个，空格或逗号分隔） */
+export function findByCode(state, { code, board: boardKey } = {}) {
+  const keys = String(code ?? '')
+    .split(/[\s,，、;；]+/)
+    .filter(Boolean)
+    .map(normCode)
+    .filter((k) => k.length === CODE_LEN)
+  if (!keys.length) {
+    return { ok: false, reason: '给一个 5 位码（比如 #9NVDA）；多个用空格或逗号分开' }
+  }
+  try {
+    const pool = boardKey ? [findBoard(state, boardKey)].filter(Boolean) : state.boards
+    const found = []
+    const missing = []
+    for (const want of keys) {
+      const hits = []
+      for (const b of pool) {
+        if (codeOf(b.id) === want) {
+          hits.push({
+            type: 'route',
+            code: want,
+            title: b.jobTitle,
+            label: b.label,
+            archived: b.archived === true,
+            nodes: b.nodes.length,
+          })
+        }
+        for (const n of b.nodes) {
+          if (codeOf(n.id) !== want) continue
+          hits.push({
+            type: 'node',
+            code: want,
+            board: { code: codeOf(b.id), title: b.jobTitle, archived: b.archived === true },
+            title: n.title,
+            level: n.level,
+            done: n.done === true,
+            dropped: n.dropped === true,
+            branch: n.branch || '',
+            purpose: plainRich(n.purpose ?? ''),
+            detail: plainRich(n.detail ?? ''),
+            notes: plainRich(n.notes ?? ''),
+            path: pathOf(b.nodes, n).map((p) => `#${p.code} ${p.title}`),
+          })
+        }
+      }
+      if (!hits.length) missing.push(want)
+      else if (hits.length > 1) found.push({ code: want, ambiguous: true, candidates: hits })
+      else found.push(hits[0])
+    }
+    return { ok: true, found, missing }
+  } catch (err) {
+    return { ok: false, reason: String(err?.message ?? err) }
+  }
+}
+
+/** 全部路线 + 卡片的码：一次拿全表，比把整棵树读进来省 token */
+export function listCodes(state, { board: boardKey, q } = {}) {
+  const filter = String(q ?? '').trim().toLowerCase()
+  try {
+    const pool = boardKey ? [findBoard(state, boardKey)].filter(Boolean) : state.boards
+    const routes = pool
+      .map((b) => {
+        const nodes = b.nodes
+          .filter((n) => !filter || n.title.toLowerCase().includes(filter))
+          .map((n) => ({
+            code: codeOf(n.id),
+            title: n.title,
+            level: n.level,
+            done: n.done === true,
+            dropped: n.dropped === true,
+          }))
+        if (filter && !nodes.length && !b.jobTitle.toLowerCase().includes(filter)) return null
+        return {
+          code: codeOf(b.id),
+          title: b.jobTitle,
+          archived: b.archived === true,
+          active: b.id === state.activeBoardId,
+          nodes,
+        }
+      })
+      .filter(Boolean)
+    return {
+      ok: true,
+      routes,
+      hint: '码从 id 派生：改名/移动不会变；复制粘贴出来的新卡是新码',
+    }
+  } catch (err) {
+    return { ok: false, reason: String(err?.message ?? err) }
   }
 }
 

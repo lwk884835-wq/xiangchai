@@ -5,6 +5,7 @@ import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
+import { codeOf, copyText } from '@/lib/code'
 import { RouteMark } from '@/components/RouteMark'
 import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
@@ -246,6 +247,21 @@ export function RoutePage({
               {subtitle}
             </p>
           </div>
+
+          {board && (
+            <button
+              onClick={() => {
+                const code = codeOf(board.id)
+                void copyText(`#${code}`).then((ok) =>
+                  toast(ok ? `已复制路线码 #${code}` : '复制失败：浏览器不给剪贴板权限'),
+                )
+              }}
+              title={`复制路线码 #${codeOf(board.id)}（Agent 的 board 参数可以直接填它）`}
+              className="hidden shrink-0 items-center rounded-md px-1.5 py-[3px] font-mono text-[10.5px] tracking-[0.06em] text-faint transition-colors hover:bg-surface-3 hover:text-muted sm:flex"
+            >
+              #{codeOf(board.id)}
+            </button>
+          )}
 
           {nodes.length > 0 && (
             <div className="ml-1 hidden shrink-0 items-center gap-2 md:flex xl:ml-4">

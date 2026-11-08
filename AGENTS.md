@@ -74,5 +74,8 @@ lwk 的口径：**以后 5180 由 Agent 改完自动更新，不用再等他确�
 - 开发版（5174）数据文件：`data/routes.json`
 - 稳定版（5180）数据文件：`data/routes-stable.json`（lwk 刷新一次稳定版后，会自动把他 localStorage 的数据写进来）
 - MCP server 在 `mcp/`：`npm run mcp:list`；数据文件默认优先 `routes-stable.json`，可用 `ROUTE_DATA_FILE` 覆盖
+- **码**：路线/卡片都有 5 位码（`#9NVDA`，算法正本 `mcp/code.mjs`，网页 `src/lib/code.ts` 直接引用）；MCP 所有
+  `board` / `node` / `id` 参数都先按码解析，`read_route` 每行开头带码，另有 `find_code` / `list_codes`。
+  改这块时别把算法复制成两份——两边算出的码不一样，就全乱了。
 - 网页和文件通过 `/api/routes` + SSE 双向同步；纯静态部署没有接口时自动退回 localStorage
 - 真实数据只落本地文件（已 gitignore），不要提交

@@ -1,8 +1,9 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, Link2, ListChecks, Plus, Trash2, Undo2, Unlink } from 'lucide-react'
+import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, Hash, Link2, ListChecks, Plus, Trash2, Undo2, Unlink } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
+import { codeOf, copyText } from '@/lib/code'
 import { NodeCard } from './NodeCard'
 import { EmptyState } from '@/components/EmptyState'
 
@@ -343,6 +344,14 @@ export const RouteBoard = memo(function RouteBoard({
   const doCopy = (id: string, mode: 'subtree' | 'chain') => {
     const n = copyNodes(id, mode)
     if (n) toast(`已复制 ${n} 张卡${mode === 'chain' ? '（含后面的步骤）' : '（含子任务）'}`)
+    setCtxMenu(null)
+  }
+
+  const doCopyCode = (id: string) => {
+    const code = codeOf(id)
+    void copyText(`#${code}`).then((ok) =>
+      toast(ok ? `已复制卡片码 #${code}` : '复制失败：浏览器不给剪贴板权限'),
+    )
     setCtxMenu(null)
   }
 
@@ -853,6 +862,19 @@ export const RouteBoard = memo(function RouteBoard({
                   >
                     <Copy size={12} className="shrink-0" />
                     复制这一串（含后面步骤）
+                  </button>
+                  <button
+                    onClick={() => doCopyCode(target.id)}
+                    title="粘给 Agent 时能精确指这张卡"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                  >
+                    <Hash size={12} className="shrink-0" />
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      复制卡片码
+                      <span className="font-mono text-[10.5px] tracking-[0.06em] text-faint">
+                        #{codeOf(target.id)}
+                      </span>
+                    </span>
                   </button>
                   <div className="my-1 h-px bg-line/70" />
                   <button

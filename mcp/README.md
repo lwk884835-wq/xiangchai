@@ -53,13 +53,25 @@ ROUTE_DATA_FILE=../data/routes.json node call.mjs list_routes
 
 | 工具 | 作用 |
 |---|---|
-| `list_routes` | 列出所有路线（含所属文件夹） |
+| `list_routes` | 列出所有路线（含所属文件夹、路线码） |
 | `read_route` | 读整棵树的缩进文本（含目的/做法/备注批注），或某个任务的位置与完整字段 |
 | `apply_plan_ops` | create / update / delete（deleteMode=only\|cascade）/ focus / detach / replace；节点支持 purpose/detail/notes |
 | `move_nodes` | child（整串搬）/ before・after（单卡调序）/ board（跨路线） |
 | `set_done` | 勾选/取消（按网页级联规则） |
 | `manage_routes` | 路线的新建/改名/归档/恢复/删除/切换/设置文件夹（op=folder） |
 | `focus_items` | 顶部「重点」里临时事项的加/勾/取消/删 |
+| `find_code` | 按码找：`#9NVDA` 是路线还是哪条路线里的哪张卡（可一次查多个） |
+| `list_codes` | 一次拿全部路线码 + 卡片码（可只取一条路线、按标题过滤） |
+
+## 码（卡片 / 路线的短指代）
+
+每条路线、每张卡都有一个 **5 位码**：`#9NVDA`。
+
+- 网页里：卡片 hover 右上角写出码，点一下就复制；右键菜单、「详情抽屉标题旁」、「路线列表 hover」都有复制入口
+- 码是**从数据里已有的 id 派生**的，不新增字段：改名、移动、换父级、导出再导入，码都跟着同一条路线/同一张卡走
+- 复制/粘贴出来的卡是**新卡**，码会变（新卡不是原卡）；卡删掉后码失效，`find_code` 会回 `missing`
+- 所有工具的 `board` / `node` / `id` 参数都先按码解析，再按 id、标题（`#`、全角＃、大小写都能容忍）
+- `read_route` 的每一行开头就是码，Agent 回话也能用码反过来指给你
 
 ## 注意
 
