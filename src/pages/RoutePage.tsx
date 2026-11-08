@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { ChevronDown, ChevronUp, PanelLeftClose, Redo2, Search, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, CornerDownLeft, PanelLeftClose, Redo2, Search, Undo2 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
-import { codeOf, copyText } from '@/lib/code'
+import { codeOf, copyText, looksLikeCode } from '@/lib/code'
+import { buildCodeIndex, findCodeHits, type CodeHit } from '@/lib/codeIndex'
 import { RouteMark } from '@/components/RouteMark'
 import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
@@ -42,6 +43,7 @@ export function RoutePage({
   const toggleNode = useActions((s) => s.toggleNode)
   const pinNode = useActions((s) => s.pinNode)
   const toggleCollapse = useActions((s) => s.toggleCollapse)
+  const setActive = useActions((s) => s.setActiveBoard)
   const history = useActions((s) => s.history)
   const undo = useActions((s) => s.undo)
   const redoHistory = useActions((s) => s.redoHistory)
@@ -54,6 +56,8 @@ export function RoutePage({
   const [search, setSearch] = useState('')
   const [matchIdx, setMatchIdx] = useState(0)
   const [highlightNonce, setHighlightNonce] = useState(0)
+  /** 搜索框里输码跳过去的目标：比关键词匹配优先，render 后滚过去闪一下 */
+  const [codeJump, setCodeJump] = useState<{ id: string; nonce: number; code: string } | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const focusWrapRef = useRef<HTMLDivElement>(null)
 
@@ -167,6 +171,50 @@ export function RoutePage({
   }, [board, boards])
 
   const searchQ = search.trim().toLowerCase()
+  /** 全库「码 → 路线/卡片」索引：搜索框里输码就能跳 */
+  const codeIndex = useMemo(() => buildCodeIndex(boards), [boards])
+  const codeHits = useMemo(() => findCodeHits(codeIndex, search), [codeIndex, search])
+  const codeHit = codeHits[0]
+
+  /** 输码跳过去：路线就切过去，卡片就切到它所在路线、展开祖先、滚过去闪一下 */
+  const jumpToCode = (hit: CodeHit) => {
+    if (hit.kind === 'route') {
+      if (hit.boardId === activeId) toast(`已经在路线 #${hit.code}「${hit.title}」`)
+      else {
+        setActive(hit.boardId)
+        toast(
+          `已切到路线 #${hit.code}「${hit.title}」${hit.archived ? ' · 在归档里' : ''}`,
+        )
+      }
+      setSearch('')
+      setCodeJump(null)
+      return
+    }
+    const target = boards.find((b) => b.id === hit.boardId)
+    const node = target?.nodes.find((n) => n.id === hit.nodeId)
+    // 链接锚点在图上不单独画（画的是投影出来的那棵树），退到它的上级去定位
+    const focusId = node ? (node.linkBoardId ? node.parentId : node.id) : null
+    if (!node || !focusId) {
+      toast(`#${hit.code} 是链接卡，图上没有它自己的位置，跳到它所在路线了`)
+      if (hit.boardId !== activeId) setActive(hit.boardId)
+      setSearch('')
+      setCodeJump(null)
+      return
+    }
+    // 目标卡如果被折叠在子树里，先把祖先链展开，不然滚过去也看不到
+    const byId = new Map(target!.nodes.map((n) => [n.id, n]))
+    const folded = new Set(collapsedMap[hit.boardId] ?? [])
+    const toOpen: string[] = []
+    for (let p = node.parentId; p; p = byId.get(p)?.parentId ?? null) {
+      if (folded.has(p)) toOpen.push(p)
+    }
+    toOpen.forEach((id) => toggleCollapse(id, hit.boardId))
+    if (hit.boardId !== activeId) setActive(hit.boardId)
+    setSearch('')
+    setCodeJump({ id: focusId, nonce: Date.now(), code: hit.code })
+    toast(`已跳到 #${hit.code}「${hit.title}」${hit.archived ? ' · 在归档里' : ''}`)
+  }
+
   const matches = useMemo(() => {
     if (!searchQ) return [] as ActionNode[]
     return viewNodes.filter((n) =>
@@ -188,9 +236,13 @@ export function RoutePage({
     setHighlightNonce((n) => n + 1)
   }
 
-  const highlight = matches.length
-    ? { id: matches[Math.min(matchIdx, matches.length - 1)].id, nonce: highlightNonce }
-    : undefined
+  /** 码跳转优先于关键词匹配；跳走以后目标不在当前视图里就不高亮 */
+  const codeJumpVisible = codeJump && viewNodes.some((n) => n.id === codeJump.id)
+  const highlight = codeJumpVisible
+    ? { id: codeJump.id, nonce: codeJump.nonce }
+    : matches.length
+      ? { id: matches[Math.min(matchIdx, matches.length - 1)].id, nonce: highlightNonce }
+      : undefined
 
   const openView = (id: string) => {
     const owner = owners.get(id)
@@ -351,22 +403,50 @@ export function RoutePage({
                 <Search size={12} className="shrink-0 text-faint" />
                 <input
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    if (codeJump) setCodeJump(null)
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
+                      if (codeHit) {
+                        jumpToCode(codeHit)
+                        return
+                      }
+                      if (looksLikeCode(search) && !matches.length) {
+                        toast(`没找到「${search.trim()}」，可能是打错了，或者这张卡已经删了`)
+                        return
+                      }
                       stepMatch(e.shiftKey ? -1 : 1)
                     }
-                    if (e.key === 'Escape') setSearch('')
+                    if (e.key === 'Escape') {
+                      setSearch('')
+                      setCodeJump(null)
+                    }
                   }}
-                  placeholder="找卡片…"
-                  title="输入关键词，回车跳到下一张（Shift+回车上一张）"
+                  placeholder="找卡片 / 输码…"
+                  title="输入关键词找卡片，回车跳下一张（Shift+回车上一张）；输入 5 位码（如 #BCU5C）回车直接跳到那张卡或那条路线"
                   className="w-[104px] bg-transparent text-[12px] text-ink outline-none transition-[width] placeholder:text-faint focus:w-[168px]"
                 />
-                {searchQ && (
-                  <span className="shrink-0 text-[10px] text-faint">
-                    {matches.length ? `${Math.min(matchIdx + 1, matches.length)}/${matches.length}` : '0'}
+                {codeHit ? (
+                  <span
+                    className="flex max-w-[190px] shrink-0 items-center gap-1 truncate text-[10px] text-muted"
+                    title={`按回车跳到${codeHit.kind === 'route' ? '路线' : '卡片'}：${codeHit.title}`}
+                  >
+                    <span className="flex h-[14px] shrink-0 items-center rounded bg-surface-3 px-1 text-muted">
+                      <CornerDownLeft size={9} strokeWidth={2.5} />
+                    </span>
+                    <span className="truncate">
+                      {codeHit.kind === 'route' ? '路线' : '卡片'} · {codeHit.title}
+                    </span>
                   </span>
+                ) : (
+                  searchQ && (
+                    <span className="shrink-0 text-[10px] text-faint">
+                      {matches.length ? `${Math.min(matchIdx + 1, matches.length)}/${matches.length}` : '0'}
+                    </span>
+                  )
                 )}
                 <button
                   onClick={() => stepMatch(-1)}

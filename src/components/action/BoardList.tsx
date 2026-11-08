@@ -22,7 +22,7 @@ import { actionProgress, useActions } from '@/store/actions'
 import type { ActionBoard, ActionNode } from '@/types'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
-import { codeOf, copyText } from '@/lib/code'
+import { codeOf, copyText, normCode } from '@/lib/code'
 
 /**
  * 右侧：路线列表。
@@ -159,8 +159,12 @@ export function BoardList() {
   }, [])
 
   const q = query.trim()
+  /** 输的正好是路线码时也认——码是 id 派生的，不用另存字段 */
+  const qCode = normCode(q)
   const matchRoute = (b: ActionBoard) =>
-    !q || [b.jobTitle, b.label, b.jobCity].join(' ').toLowerCase().includes(q.toLowerCase())
+    !q ||
+    [b.jobTitle, b.label, b.jobCity].join(' ').toLowerCase().includes(q.toLowerCase()) ||
+    (qCode.length === 5 && codeOf(b.id) === qCode)
   const live = boards.filter((b) => !b.archived && matchRoute(b))
   const archived = boards.filter((b) => b.archived && matchRoute(b))
   /** 收起态显示当前路线名（比「路线 N」直观） */
@@ -420,7 +424,8 @@ export function BoardList() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索路线…"
+            placeholder="搜索路线 / 输码…"
+            title="按名字找路线，也可以直接输 5 位路线码（如 #BCU5C）"
             className="field h-7 px-2 text-[12px]"
           />
         </div>
