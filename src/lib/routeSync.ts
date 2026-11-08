@@ -1,5 +1,6 @@
 import { useActions, type FocusItem } from '@/store/actions'
 import type { ActionBoard } from '@/types'
+import { normalizeBoardsDrops } from '@/lib/dropCascade'
 
 /**
  * 路线数据和本地文件的双向同步（给 MCP / 外部 Agent 用）。
@@ -50,7 +51,8 @@ export function startRouteSync(): void {
   const apply = (snap: RouteSnapshot) => {
     suppress++
     useActions.setState({
-      boards: Array.isArray(snap.boards) ? snap.boards : [],
+      // 外部改的数据（MCP / 旧版本存档）里灰色可能是旧的：进来时按红卡重推一遍
+      boards: Array.isArray(snap.boards) ? normalizeBoardsDrops(snap.boards) : [],
       focusItems: Array.isArray(snap.focusItems) ? snap.focusItems : [],
       collapsed: snap.collapsed && typeof snap.collapsed === 'object' ? snap.collapsed : {},
       folders: Array.isArray(snap.folders) ? snap.folders : [],

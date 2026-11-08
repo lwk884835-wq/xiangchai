@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ActionBoard, ActionNode } from '@/types'
+import {
+  deriveDropFlags,
+  dropRootsOf,
+  normalizeBoardDrops,
+  normalizeBoardsDrops,
+} from '@/lib/dropCascade'
 
 /**
  * 行动路线：一个方向/计划可以有多份路线（比如「主计划 / 备用」）。
@@ -167,7 +173,11 @@ export const useActions = create<ActionState>()(
       }
       const patchBoard = (boardId: string | undefined, fn: (b: ActionBoard) => ActionBoard) =>
         set((s) => ({
-          boards: s.boards.map((b) => (b.id === (boardId ?? s.activeBoardId) ? fn(b) : b)),
+          boards: s.boards.map((b) => {
+            if (b.id !== (boardId ?? s.activeBoardId)) return b
+            // 结构一变就按红卡重推一遍灰卡：挪到别的链上之后不该继续灰着
+            return normalizeBoardDrops(fn(b))
+          }),
         }))
 
       /** 记一步「改动前」的整份路线快照：勾选/删除/拖拽都用同一个撤回按钮 */
@@ -284,7 +294,8 @@ export const useActions = create<ActionState>()(
             titleAuto: false,
             createdAt: Date.now(),
             archived: false,
-            nodes: newNodes,
+            // 独立出去的这一串可能不再带着原来的红卡：灰卡按新结构重推
+            nodes: deriveDropFlags(newNodes),
           }
           // 原位置只留一个「链接锚点」：它自己不渲染，被链接路线的根卡会直接显示在原位
           // （看起来就是普通粘贴过来的卡片，蓝色描边表示是链接的；改动写回新路线）
@@ -315,7 +326,7 @@ export const useActions = create<ActionState>()(
                 if (b.id !== src.id) return b
                 const nodes = b.nodes.filter((n) => !moving.has(n.id))
                 nodes.splice(beforeCount, 0, linkNode)
-                return { ...b, nodes }
+                return normalizeBoardDrops({ ...b, nodes })
               }),
             ],
           }))
@@ -484,77 +495,44 @@ export const useActions = create<ActionState>()(
           const board = boardOf(boardId)
           const node = board?.nodes.find((n) => n.id === id)
           if (!board || !node) return 0
-          const marked = new Set<string>([node.id])
-          // 尚未完成的子任务：带上；已经勾完的保持绿色不动
-          const addUnfinishedKids = (pid: string) => {
-            for (const n of board.nodes) {
-              if (n.parentId !== pid || marked.has(n.id)) continue
-              if (n.done) continue
-              marked.add(n.id)
-              addUnfinishedKids(n.id)
-            }
-          }
-          addUnfinishedKids(node.id)
-          // 同一串里排在它后面的步骤（连同未完成的子任务）
-          const mates = board.nodes.filter(
-            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          if (node.dropRoot === true) return 0
+          // 只钉「红卡」这一件事，灰卡由结构推出来（见 lib/dropCascade）
+          const before = board.nodes.filter((n) => n.dropped).length
+          const next = deriveDropFlags(
+            board.nodes.map((n) =>
+              n.id === id ? { ...n, dropped: true, dropRoot: true } : n,
+            ),
           )
-          const at = mates.findIndex((n) => n.id === node.id)
-          for (const f of at >= 0 ? mates.slice(at + 1) : []) {
-            if (marked.has(f.id)) continue
-            marked.add(f.id)
-            addUnfinishedKids(f.id)
-          }
+          const n = next.filter((x) => x.dropped).length - before
           pushHistory('标记不合适')
           patchBoard(board.id, (b) => ({
             ...b,
-            nodes: b.nodes.map((n) =>
-              marked.has(n.id)
-                ? { ...n, dropped: true, dropRoot: n.id === node.id }
-                : n,
+            nodes: b.nodes.map((x) =>
+              x.id === id ? { ...x, dropped: true, dropRoot: true } : x,
             ),
           }))
-          return marked.size
+          return n
         },
 
         unmarkUnsuitable: (id, boardId) => {
           const board = boardOf(boardId)
           const node = board?.nodes.find((n) => n.id === id)
           if (!board || !node) return 0
-          const clear = new Set<string>([node.id])
-          const addAllKids = (pid: string) => {
-            for (const n of board.nodes) {
-              if (n.parentId !== pid || clear.has(n.id)) continue
-              clear.add(n.id)
-              addAllKids(n.id)
-            }
-          }
-          addAllKids(node.id)
-          const mates = board.nodes.filter(
-            (n) => n.parentId === node.parentId && (n.branch || '') === (node.branch || ''),
+          // 灰卡自己没有记「标记」，让它灰的是前面/上面的红卡：点灰卡取消 = 取消那张红卡
+          const roots = node.dropRoot === true ? [node] : dropRootsOf(board.nodes, id)
+          if (!roots.length) return 0
+          const rootIds = new Set(roots.map((r) => r.id))
+          const cleared = board.nodes.map((n) =>
+            rootIds.has(n.id) ? { ...n, dropped: false, dropRoot: false } : n,
           )
-          const at = mates.findIndex((n) => n.id === node.id)
-          for (const f of at >= 0 ? mates.slice(at + 1) : []) {
-            if (clear.has(f.id)) continue
-            clear.add(f.id)
-            addAllKids(f.id)
-          }
-          // 只清这部分；其它地方的标记不动
-          let n = 0
-          const patch: Record<string, boolean> = {}
-          for (const x of clear) {
-            const cur = board.nodes.find((k) => k.id === x)
-            if (cur?.dropped || cur?.dropRoot) {
-              n++
-              patch[x] = true
-            }
-          }
+          const before = board.nodes.filter((n) => n.dropped).length
+          const n = before - deriveDropFlags(cleared).filter((x) => x.dropped).length
           if (!n) return 0
           pushHistory('取消不合适标记')
           patchBoard(board.id, (b) => ({
             ...b,
-            nodes: b.nodes.map((k) =>
-              patch[k.id] ? { ...k, dropped: false, dropRoot: false } : k,
+            nodes: b.nodes.map((x) =>
+              rootIds.has(x.id) ? { ...x, dropped: false, dropRoot: false } : x,
             ),
           }))
           return n
@@ -757,7 +735,10 @@ export const useActions = create<ActionState>()(
           set((s) => ({
             boards: s.boards.map((b) =>
               b.id === board.id
-                ? { ...b, nodes: b.nodes.map((n) => (hit.has(n.id) ? { ...n, done: next } : n)) }
+                ? normalizeBoardDrops({
+                    ...b,
+                    nodes: b.nodes.map((n) => (hit.has(n.id) ? { ...n, done: next } : n)),
+                  })
                 : b,
             ),
           }))
@@ -776,7 +757,7 @@ export const useActions = create<ActionState>()(
               },
               ...s.redoHistory,
             ].slice(0, 30),
-            boards: last.boards,
+            boards: normalizeBoardsDrops(last.boards),
             activeBoardId: last.activeBoardId ?? s.activeBoardId,
           }))
           return last.label
@@ -795,7 +776,7 @@ export const useActions = create<ActionState>()(
               },
               ...s.history,
             ].slice(0, 30),
-            boards: next.boards,
+            boards: normalizeBoardsDrops(next.boards),
             activeBoardId: next.activeBoardId ?? s.activeBoardId,
           }))
           return next.label
@@ -1187,8 +1168,14 @@ export const useActions = create<ActionState>()(
           set((s2) => ({
             activeBoardId: to.id,
             boards: s2.boards.map((b) => {
-              if (b.id === from.id) return { ...b, nodes: b.nodes.filter((n) => !moving.has(n.id)) }
-              if (b.id === to.id) return { ...b, nodes: [...b.nodes, ...updated] }
+              // 搬走/搬入都按各自的新结构重推灰卡：跨路线搬走的灰卡不该跟着灰过去
+              if (b.id === from.id)
+                return normalizeBoardDrops({
+                  ...b,
+                  nodes: b.nodes.filter((n) => !moving.has(n.id)),
+                })
+              if (b.id === to.id)
+                return normalizeBoardDrops({ ...b, nodes: [...b.nodes, ...updated] })
               return b
             }),
           }))
@@ -1307,7 +1294,7 @@ export const useActions = create<ActionState>()(
             set((s) => {
               const have = new Set(s.boards.map((b) => b.id))
               const add = boards.filter((b) => !have.has(b.id))
-              const merged = [...s.boards, ...add]
+              const merged = normalizeBoardsDrops([...s.boards, ...add])
               return {
                 boards: merged,
                 focusItems: [
@@ -1332,21 +1319,23 @@ export const useActions = create<ActionState>()(
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ActionState>
         const rawBoards = Array.isArray(p.boards) ? p.boards : []
-        const boards: ActionBoard[] = rawBoards
-          .filter((b): b is ActionBoard => !!b && typeof b === 'object')
-          .map((b) => ({
-            id: String(b.id ?? `bd-${Math.random().toString(36).slice(2, 8)}`),
-            jobTitle: String(b.jobTitle ?? '未命名路线'),
-            jobCity: String(b.jobCity ?? ''),
-            label: String(b.label ?? ''),
-            folder: String(b.folder ?? ''),
-            titleAuto: b.titleAuto === true,
-            createdAt: Number(b.createdAt ?? Date.now()),
-            archived: !!b.archived,
-            nodes: Array.isArray(b.nodes)
-              ? b.nodes.filter((n) => n && typeof n === 'object' && n.title)
-              : [],
-          }))
+        const boards: ActionBoard[] = normalizeBoardsDrops(
+          rawBoards
+            .filter((b): b is ActionBoard => !!b && typeof b === 'object')
+            .map((b) => ({
+              id: String(b.id ?? `bd-${Math.random().toString(36).slice(2, 8)}`),
+              jobTitle: String(b.jobTitle ?? '未命名路线'),
+              jobCity: String(b.jobCity ?? ''),
+              label: String(b.label ?? ''),
+              folder: String(b.folder ?? ''),
+              titleAuto: b.titleAuto === true,
+              createdAt: Number(b.createdAt ?? Date.now()),
+              archived: !!b.archived,
+              nodes: Array.isArray(b.nodes)
+                ? b.nodes.filter((n) => n && typeof n === 'object' && n.title)
+                : [],
+            })),
+        )
         const collapsed =
           p.collapsed && typeof p.collapsed === 'object' && !Array.isArray(p.collapsed)
             ? p.collapsed
