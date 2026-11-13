@@ -128,7 +128,7 @@ export function FocusList({
         {groups.map((g, gi) => (
           <div key={g.boardId}>
             {/* 组与组之间只隔一条细线，不写路线名（他心里清楚东西大概在哪条线上） */}
-            {gi > 0 && <div className="mx-2 my-1 border-t border-line/50" />}
+            {gi > 0 && <div className="mx-2 my-1.5 border-t border-line/80" />}
             {g.rows.map((r, ri) => {
               const prev = ri > 0 ? g.rows[ri - 1].node : null
               // 上一步是这一步的前置 → 用一个小箭头表达「串着做」
@@ -150,7 +150,7 @@ export function FocusList({
                     </button>
                     <button
                       onClick={() => onJump(g.boardId, r.node.id)}
-                      title={`${g.boardTitle || '未命名路线'} · 点一下跳到这张卡`}
+                      title={`${r.node.title}\n${g.boardTitle || '未命名路线'} · 点一下跳过去`}
                       className={cn(
                         'min-w-0 flex-1 truncate text-left text-[13px] leading-[1.5]',
                         r.node.done ? 'text-faint line-through decoration-line-2' : 'text-ink-2',
