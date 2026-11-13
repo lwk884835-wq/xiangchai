@@ -76,6 +76,7 @@ ROUTE_DATA_FILE=../data/routes.json node call.mjs list_routes
 ## 注意
 
 - 只读写本地文件，不需要网络、不会外传。
+- 顶部「重点」是**跨路线**的（26.11.14 起）：所有路线里 `pinned` 过的节点汇在同一份清单里，切路线不换内容，归档的路线不进来；`focus_items` 管的仍是用户手加的那几条临时事项。
 - 网页没开也能改；下次打开网页会以文件为准加载。
 - `call.mjs` 调试 CLI 默认读写开发版 `data/routes.json`；想调真实数据显式传 `ROUTE_DATA_FILE=../data/routes-stable.json`。
 - 被链接进当天路线的任务在树里带 `↪` 前缀（`linkBoardId` 指向来源路线）；
