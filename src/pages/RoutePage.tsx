@@ -176,6 +176,34 @@ export function RoutePage({
   const codeHits = useMemo(() => findCodeHits(codeIndex, search), [codeIndex, search])
   const codeHit = codeHits[0]
 
+  /**
+   * 切到某条路线，把一张卡滚到视口中间闪一下。
+   * 重点清单跨路线了，点一条重点就走这里（以前只能定位当前路线里的卡）。
+   * 链接锚点在图上不单独画（画的是投影出来的那棵树），退到它的上级去定位，
+   * 退不动（它是根）就只切路线。
+   */
+  const locateCard = (boardId: string, nodeId: string) => {
+    const target = boards.find((b) => b.id === boardId)
+    const node = target?.nodes.find((n) => n.id === nodeId)
+    if (!target || !node) return false
+    const focusId = node.linkBoardId ? node.parentId : node.id
+    if (!focusId) {
+      if (boardId !== activeId) setActive(boardId)
+      return false
+    }
+    // 目标卡如果被折叠在子树里，先把祖先链展开，不然滚过去也看不到
+    const byId = new Map(target.nodes.map((n) => [n.id, n]))
+    const folded = new Set(collapsedMap[boardId] ?? [])
+    const toOpen: string[] = []
+    for (let p = node.parentId; p; p = byId.get(p)?.parentId ?? null) {
+      if (folded.has(p)) toOpen.push(p)
+    }
+    toOpen.forEach((id) => toggleCollapse(id, boardId))
+    if (boardId !== activeId) setActive(boardId)
+    setCodeJump({ id: focusId, nonce: Date.now(), code: '' })
+    return true
+  }
+
   /** 输码跳过去：路线就切过去，卡片就切到它所在路线、展开祖先、滚过去闪一下 */
   const jumpToCode = (hit: CodeHit) => {
     if (hit.kind === 'route') {
@@ -190,28 +218,12 @@ export function RoutePage({
       setCodeJump(null)
       return
     }
-    const target = boards.find((b) => b.id === hit.boardId)
-    const node = target?.nodes.find((n) => n.id === hit.nodeId)
-    // 链接锚点在图上不单独画（画的是投影出来的那棵树），退到它的上级去定位
-    const focusId = node ? (node.linkBoardId ? node.parentId : node.id) : null
-    if (!node || !focusId) {
-      toast(`#${hit.code} 是链接卡，图上没有它自己的位置，跳到它所在路线了`)
-      if (hit.boardId !== activeId) setActive(hit.boardId)
-      setSearch('')
+    setSearch('')
+    if (!locateCard(hit.boardId, hit.nodeId)) {
       setCodeJump(null)
+      toast(`#${hit.code} 是链接卡，图上没有它自己的位置，跳到它所在路线了`)
       return
     }
-    // 目标卡如果被折叠在子树里，先把祖先链展开，不然滚过去也看不到
-    const byId = new Map(target!.nodes.map((n) => [n.id, n]))
-    const folded = new Set(collapsedMap[hit.boardId] ?? [])
-    const toOpen: string[] = []
-    for (let p = node.parentId; p; p = byId.get(p)?.parentId ?? null) {
-      if (folded.has(p)) toOpen.push(p)
-    }
-    toOpen.forEach((id) => toggleCollapse(id, hit.boardId))
-    if (hit.boardId !== activeId) setActive(hit.boardId)
-    setSearch('')
-    setCodeJump({ id: focusId, nonce: Date.now(), code: hit.code })
     toast(`已跳到 #${hit.code}「${hit.title}」${hit.archived ? ' · 在归档里' : ''}`)
   }
 
@@ -361,7 +373,7 @@ export function RoutePage({
           className="anim-fade-in flex-1 space-y-4 overflow-y-auto px-5 py-4 xl:space-y-5 xl:px-6 xl:py-5"
         >
           <div ref={focusWrapRef}>
-            <FocusList nodes={nodes} onOpen={setOpenId} />
+            <FocusList boards={boards} activeBoardId={activeId} onJump={locateCard} />
           </div>
 
           <section className="rounded-[16px] border border-line/60 bg-surface shadow-e1">

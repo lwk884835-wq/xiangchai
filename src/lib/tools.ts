@@ -141,7 +141,7 @@ export const TOOLS: unknown[] = [
                   type: 'boolean',
                   description: '与兄弟节点并行（默认串行；并行的线记得传 true）',
                 },
-                pinned: { type: 'boolean', description: '是否定到顶部「重点」清单' },
+                pinned: { type: 'boolean', description: '是否定到顶部「重点」清单（清单跨路线，所有路线的重点汇在一份里）' },
               },
             },
           },
@@ -825,7 +825,9 @@ export function buildSystemPrompt(): string {
   const st = useActions.getState()
   const board = st.boards.find((b) => b.id === st.activeBoardId) ?? st.boards[0]
   const nodes = board?.nodes ?? []
-  const pinned = nodes.filter((n) => n.pinned).map((n) => n.title)
+  const pinned = st.boards
+    .filter((b) => !b.archived)
+    .flatMap((b) => b.nodes.filter((n) => n.pinned).map((n) => n.title))
   const graph = board ? graphWithCodes(nodes, 5) : ''
   const done = nodes.filter((n) => n.done).length
   const focus = st.focusItems.filter((f) => !f.done).map((f) => f.text)
@@ -835,7 +837,7 @@ export function buildSystemPrompt(): string {
 ## 你现在看到的
 - 当前路线：${board ? `「${board.jobTitle}」` : '还没有路线'}（${nodes.length} 个节点，完成 ${done} 个）
 ${board ? `- 路线全貌（缩进即层级）：\n${graph || '（空）'}` : ''}
-- 顶部「重点」：${[...pinned, ...focus].join('；') || '还没有'}
+- 顶部「重点」（跨路线汇总，不随当前路线切）：${[...pinned, ...focus].join('；') || '还没有'}
 
 ## 你只做一件事：把用户想做的事拆成路线，或者改现在的路线
 - 想看结构/找某个任务 → read_action_graph
