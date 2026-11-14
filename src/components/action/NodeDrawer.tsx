@@ -111,6 +111,7 @@ export function NodeDrawer({
   const [notes, setNotes] = useState('')
   const [childTitle, setChildTitle] = useState('')
   const [childPurpose, setChildPurpose] = useState('')
+  const [childApproach, setChildApproach] = useState('')
   const [childDetail, setChildDetail] = useState('')
   const [childNotes, setChildNotes] = useState('')
   // 默认串行：往一棵计划里加子任务，绝大多数是「接着上一步做」
@@ -137,6 +138,7 @@ export function NodeDrawer({
   type ChildDraft = {
     title: string
     purpose: string
+    approach: string
     detail: string
     notes: string
     parallel: boolean
@@ -192,9 +194,10 @@ export function NodeDrawer({
     setNotes(node.notes ?? '')
     // 串行沿用父级那条线，并行单独分一条（addNode 里处理）
     const draft = readDraft()
-    if (draft && (draft.title || draft.purpose || draft.detail || draft.notes)) {
+    if (draft && (draft.title || draft.purpose || draft.approach || draft.detail || draft.notes)) {
       setChildTitle(draft.title ?? '')
       setChildPurpose(draft.purpose ?? '')
+      setChildApproach(draft.approach ?? '')
       setChildDetail(draft.detail ?? '')
       setChildNotes(draft.notes ?? '')
       setChildParallel(!!draft.parallel)
@@ -204,6 +207,7 @@ export function NodeDrawer({
     } else {
       setChildTitle('')
       setChildPurpose('')
+      setChildApproach('')
       setChildDetail('')
       setChildNotes('')
       setChildParallel(false)
@@ -219,6 +223,7 @@ export function NodeDrawer({
     const draft: ChildDraft = {
       title: childTitle,
       purpose: childPurpose,
+      approach: childApproach,
       detail: childDetail,
       notes: childNotes,
       parallel: childParallel,
@@ -226,13 +231,20 @@ export function NodeDrawer({
       selectedChildId,
     }
     const empty =
-      !draft.title && !draft.purpose && !draft.detail && !draft.notes && !draft.parallel && !draft.atStart
+      !draft.title &&
+      !draft.purpose &&
+      !draft.approach &&
+      !draft.detail &&
+      !draft.notes &&
+      !draft.parallel &&
+      !draft.atStart
     if (empty) clearDraft()
     else writeDraft(draft)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     childTitle,
     childPurpose,
+    childApproach,
     childDetail,
     childNotes,
     childParallel,
@@ -368,6 +380,7 @@ export function NodeDrawer({
     const base = {
       title: childTitle.trim(),
       purpose: childPurpose.trim(),
+      approach: childApproach.trim(),
       detail: childDetail.trim(),
       notes: childNotes.trim(),
       level: node.level + 1,
@@ -918,6 +931,20 @@ export function NodeDrawer({
                 placeholder="目的（选填：为什么要做这个）"
                 minHeight={32}
                 className="max-h-24 px-2 py-1 text-[11.5px]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    addChild()
+                  }
+                }}
+              />
+              <RichField
+                showImageButton={false}
+                value={childApproach}
+                onChange={setChildApproach}
+                placeholder="行动思路（选填：打算怎么走、先试什么、什么情况下换方案；可以插图）"
+                minHeight={40}
+                className="max-h-32 px-2 py-1 text-[11.5px] leading-[17px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()
