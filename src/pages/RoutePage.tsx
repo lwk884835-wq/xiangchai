@@ -232,7 +232,7 @@ export function RoutePage({
   const matches = useMemo(() => {
     if (!searchQ) return [] as ActionNode[]
     return viewNodes.filter((n) =>
-      [n.title, n.purpose, n.detail, n.notes].join(' ').toLowerCase().includes(searchQ),
+      [n.title, n.purpose, n.approach, n.detail, n.notes].join(' ').toLowerCase().includes(searchQ),
     )
   }, [searchQ, viewNodes])
 
