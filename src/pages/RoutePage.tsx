@@ -379,13 +379,14 @@ export function RoutePage({
           </div>
 
           <section className="rounded-[16px] border border-line/60 bg-surface shadow-e1">
-            <header className="flex items-center gap-2 border-b border-line/70 px-5 py-3.5">
+            <header className="flex items-center gap-2 border-b border-line/70 px-5 pt-3.5 pb-[18px]">
               <h2 className="shrink-0 text-[14px] font-semibold tracking-tight">路线</h2>
               <span className="hidden truncate text-[12px] text-faint lg:inline">
                 勾父任务会连带勾上子任务 · 勾后面一步会连带勾上前面的
               </span>
             </header>
-            <div className="pointer-events-none sticky top-2 z-30 flex items-center justify-between gap-2 px-3 xl:px-4">
+            {/* 工具条骑在「路线」那条分割线上：-mt 上移半个按钮高度，上半压在 header 里、下半到线下 */}
+            <div className="pointer-events-none sticky top-2 z-30 -mt-[14px] flex items-center justify-between gap-2 px-5">
               <div className="pointer-events-auto flex items-center gap-1">
                 <button
                   onClick={() => {
@@ -481,7 +482,7 @@ export function RoutePage({
               </div>
             </div>
 
-            <div className="px-3 py-3 xl:px-4 xl:py-4">
+            <div className="px-3 pt-[18px] pb-3 xl:px-4 xl:pt-5 xl:pb-4">
               <RouteBoard
                 nodes={viewNodes}
                 collapsed={collapsed}
