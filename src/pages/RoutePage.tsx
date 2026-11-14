@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   CornerDownLeft,
@@ -9,6 +10,7 @@ import {
   Redo2,
   Search,
   Sun,
+  SunMoon,
   Undo2,
 } from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
@@ -22,7 +24,15 @@ import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
 import { NodeDrawer } from '@/components/action/NodeDrawer'
 import { BoardList } from '@/components/action/BoardList'
-import { applyTheme, readTheme, rememberTheme, type Theme } from '@/lib/theme'
+import {
+  applyTheme,
+  readPref,
+  rememberPref,
+  systemTheme,
+  watchSystemTheme,
+  type Theme,
+  type ThemePref,
+} from '@/lib/theme'
 
 function dateLine() {
   const now = new Date()
@@ -69,16 +79,41 @@ export function RoutePage({
   const [highlightNonce, setHighlightNonce] = useState(0)
   /** 搜索框里输码跳过去的目标：比关键词匹配优先，render 后滚过去闪一下 */
   const [codeJump, setCodeJump] = useState<{ id: string; nonce: number; code: string } | null>(null)
-  /* 主题：进来先按上次的选择（没选过就跟随系统），切换后记住 */
-  const [theme, setTheme] = useState<Theme>(() => readTheme())
+  /*
+    主题：偏好（跟随系统 / 浅 / 深）和「实际生效的浅深」分开存。
+    偏好是 system 时跟着系统走——系统切了这边当场跟着变，不用刷新。
+    手动选过浅或深就固定住，不再被系统带着跑；选回「跟随系统」立刻交还控制权。
+  */
+  const [pref, setPref] = useState<ThemePref>(() => readPref())
+  const [systemDark, setSystemDark] = useState(() => systemTheme() === 'dark')
+  const theme: Theme = pref === 'system' ? (systemDark ? 'dark' : 'light') : pref
   useEffect(() => {
     applyTheme(theme)
   }, [theme])
-  const toggleTheme = () => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    rememberTheme(next)
+  useEffect(() => watchSystemTheme((t) => setSystemDark(t === 'dark')), [])
+  const [themeMenu, setThemeMenu] = useState(false)
+  const themeMenuRef = useRef<HTMLDivElement>(null)
+  const choosePref = (next: ThemePref) => {
+    setPref(next)
+    rememberPref(next)
+    setThemeMenu(false)
   }
+  // 点菜单外面 / 按 Esc 就收起
+  useEffect(() => {
+    if (!themeMenu) return
+    const onDown = (e: MouseEvent) => {
+      if (!themeMenuRef.current?.contains(e.target as Node)) setThemeMenu(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setThemeMenu(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [themeMenu])
   const contentRef = useRef<HTMLDivElement>(null)
   const focusWrapRef = useRef<HTMLDivElement>(null)
 
@@ -363,14 +398,67 @@ export function RoutePage({
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <button
-              onClick={toggleTheme}
-              title={theme === 'dark' ? '切回浅色' : '切到深色'}
-              aria-label={theme === 'dark' ? '切回浅色' : '切到深色'}
-              className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-line/70 bg-surface text-muted transition-colors hover:border-line-2 hover:text-ink"
-            >
-              {theme === 'dark' ? <Moon size={15} strokeWidth={1.9} /> : <Sun size={15} strokeWidth={1.9} />}
-            </button>
+            <div ref={themeMenuRef} className="relative shrink-0">
+              <button
+                onClick={() => setThemeMenu((v) => !v)}
+                title={
+                  pref === 'system'
+                    ? `外观：跟随系统（现在是用${theme === 'dark' ? '深色' : '浅色'}）`
+                    : pref === 'dark'
+                      ? '外观：深色'
+                      : '外观：浅色'
+                }
+                aria-label="切换外观"
+                aria-expanded={themeMenu}
+                className={cn(
+                  'flex h-[32px] w-[32px] items-center justify-center rounded-full border transition-colors',
+                  themeMenu
+                    ? 'border-line-2 bg-surface-3 text-ink'
+                    : 'border-line/70 bg-surface text-muted hover:border-line-2 hover:text-ink',
+                )}
+              >
+                {pref === 'system' ? (
+                  <SunMoon size={15} strokeWidth={1.9} />
+                ) : theme === 'dark' ? (
+                  <Moon size={15} strokeWidth={1.9} />
+                ) : (
+                  <Sun size={15} strokeWidth={1.9} />
+                )}
+              </button>
+
+              {themeMenu && (
+                <div
+                  data-theme-menu
+                  className="anim-pop absolute top-[38px] right-0 z-50 w-[142px] rounded-[12px] border border-line bg-surface p-1 shadow-e3"
+                >
+                  {(
+                    [
+                      { key: 'system', label: '跟随系统', icon: SunMoon },
+                      { key: 'light', label: '浅色', icon: Sun },
+                      { key: 'dark', label: '深色', icon: Moon },
+                    ] as const
+                  ).map(({ key, label, icon: Icon }) => {
+                    const active = pref === key
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => choosePref(key)}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-[8px] px-2 py-[7px] text-left text-[12px] transition-colors',
+                          active
+                            ? 'bg-accent-soft text-accent-ink'
+                            : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
+                        )}
+                      >
+                        <Icon size={13} strokeWidth={1.9} className="shrink-0" />
+                        <span className="flex-1">{label}</span>
+                        {active && <Check size={12} strokeWidth={2.4} className="shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
             <button
               onClick={onToggleAgent}
               className={cn(
