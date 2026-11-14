@@ -104,6 +104,10 @@ server.registerTool(
               id: z.string().optional().describe('update/delete/focus/detach 用：节点 id、标题或 5 位卡片码'),
               title: z.string().optional(),
               purpose: z.string().optional().describe('行动目标/目的'),
+              approach: z
+                .string()
+                .optional()
+                .describe('行动思路：打算怎么走、先试什么、什么情况下换方案'),
               detail: z.string().optional().describe('具体怎么做'),
               notes: z.string().optional().describe('其他备注/批注'),
               dropped: z.boolean().optional().describe('标记「不太合适」：卡片划去/灰掉但保留'),

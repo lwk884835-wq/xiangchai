@@ -126,6 +126,10 @@ export const TOOLS: unknown[] = [
                     '任务名，写成能执行的动作（动词开头、有交付物），不要口号/提醒（如「保持节奏」→「每周运动 3 次」）',
                 },
                 purpose: { type: 'string', description: '这件事为了什么（不要重复标题）' },
+                approach: {
+                  type: 'string',
+                  description: '行动思路：打算怎么走、先试什么、什么情况下换方案（想法推演，不是交付物）',
+                },
                 detail: { type: 'string', description: '具体怎么做：动作、产出物、怎么算完成' },
                 level: { type: 'number', description: '1=目标 2=并行的线 3+=动作；不填按父节点推断' },
                 parentId: {
@@ -427,6 +431,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
           {
             title: String(n.title ?? '新节点'),
             purpose: String(n.purpose ?? ''),
+            approach: String(n.approach ?? ''),
             detail: String(n.detail ?? ''),
             level: Number(n.level ?? 1),
             parentId: null,
@@ -491,6 +496,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
           {
             title,
             purpose: String(n.purpose ?? ''),
+            approach: String(n.approach ?? ''),
             detail: String(n.detail ?? ''),
             level,
             parentId: parent?.id ?? null,
@@ -579,6 +585,7 @@ export async function runTool(name: string, rawArgs: string): Promise<ToolOut> {
       const patch: Record<string, unknown> = {}
       if (item.title != null) patch.title = String(item.title)
       if (item.purpose != null) patch.purpose = String(item.purpose)
+      if (item.approach != null) patch.approach = String(item.approach)
       if (item.detail != null) patch.detail = String(item.detail)
       if (item.branch != null) patch.branch = String(item.branch)
       if (item.parallel != null) patch.parallel = item.parallel === true

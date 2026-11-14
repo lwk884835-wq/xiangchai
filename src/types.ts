@@ -5,6 +5,8 @@ export interface ActionNode {
   title: string
   /** 这件事为了什么 */
   purpose: string
+  /** 行动思路：打算怎么走、先试什么、什么情况下换方案（想法推演，不是交付物） */
+  approach?: string
   /** 具体怎么做（动作 / 交付物 / 怎么算完成） */
   detail: string
   /** 其他备注：想到什么记什么，不会被当成任务执行 */

@@ -212,7 +212,7 @@ export const useActions = create<ActionState>()(
           const used = new Set<string>()
           for (const b of s0.boards) {
             for (const n of b.nodes) {
-              for (const field of [n.title, n.purpose, n.detail, n.notes]) {
+              for (const field of [n.title, n.purpose, n.approach, n.detail, n.notes]) {
                 if (!field) continue
                 for (const m of field.matchAll(/\[\[img:([A-Za-z0-9_-]+)\]\]/g)) used.add(m[1])
               }
@@ -606,6 +606,8 @@ export const useActions = create<ActionState>()(
             id,
             title: input.title,
             purpose: input.purpose ?? '',
+            // 行动思路：打算怎么走，纯想法推演
+            approach: input.approach ?? '',
             detail: input.detail ?? '',
             // 其他批注：纯记录，不参与依赖/勾选逻辑
             notes: input.notes ?? '',

@@ -104,6 +104,8 @@ export function NodeDrawer({
 
   const [title, setTitle] = useState('')
   const [purpose, setPurpose] = useState('')
+  /** 行动思路：打算怎么走、先试什么、什么情况下换方案 */
+  const [approach, setApproach] = useState('')
   const [detail, setDetail] = useState('')
   /** 其他备注：纯记录用，不参与任务/依赖逻辑 */
   const [notes, setNotes] = useState('')
@@ -185,6 +187,7 @@ export function NodeDrawer({
     if (!node) return
     setTitle(node.title)
     setPurpose(node.purpose)
+    setApproach(node.approach ?? '')
     setDetail(node.detail)
     setNotes(node.notes ?? '')
     // 串行沿用父级那条线，并行单独分一条（addNode 里处理）
@@ -295,6 +298,7 @@ export function NodeDrawer({
       updateNode(node.id, {
         title: title.trim() || node.title,
         purpose,
+        approach: approach.trim(),
         detail,
         notes: notes.trim(),
       })
@@ -315,6 +319,7 @@ export function NodeDrawer({
     updateNode(node.id, {
       title: title.trim() || node.title,
       purpose,
+      approach: approach.trim(),
       detail,
       notes: notes.trim(),
     })
@@ -670,6 +675,26 @@ export function NodeDrawer({
                 onBlur={() => updateNode(node.id, { purpose })}
                 placeholder="这一块是为了什么（可以插图）"
                 minHeight={58}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    commitEdits()
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">行动思路</label>
+            <div className="mt-1">
+              <RichField
+                showImageButton={false}
+                value={approach}
+                onChange={setApproach}
+                onBlur={() => updateNode(node.id, { approach: approach.trim() })}
+                placeholder="打算怎么走：先试什么、哪种情况下换方案（可以插图）"
+                minHeight={100}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault()

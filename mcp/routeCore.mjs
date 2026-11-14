@@ -166,6 +166,7 @@ export function graphText(board, maxDepth = 6) {
       for (const extra of parts.slice(1)) lines.push(`${pad}    ${extra}`)
     }
     block('', n.purpose)
+    block('思路', n.approach)
     block('做法', n.detail)
     block('备注', n.notes)
     for (const c of kidsOf(nodes, n.id)) walk(c, depth + 1)
@@ -223,6 +224,7 @@ export function readRoute(state, { board: boardKey, node: nodeKey } = {}) {
         level: node.level,
         path: pathOf(board.nodes, node).map((p) => `#${p.code} ${p.title}`),
         purpose: plainRich(node.purpose ?? ''),
+        approach: plainRich(node.approach ?? ''),
         detail: plainRich(node.detail ?? ''),
         notes: plainRich(node.notes ?? ''),
         dropped: node.dropped === true,
@@ -294,6 +296,7 @@ export function findByCode(state, { code, board: boardKey } = {}) {
             dropped: n.dropped === true,
             branch: n.branch || '',
             purpose: plainRich(n.purpose ?? ''),
+            approach: plainRich(n.approach ?? ''),
             detail: plainRich(n.detail ?? ''),
             notes: plainRich(n.notes ?? ''),
             path: pathOf(b.nodes, n).map((p) => `#${p.code} ${p.title}`),
@@ -363,6 +366,7 @@ const addCreated = (nodes, item, createdBy, orphans) => {
     id: uid(),
     title: String(item.title ?? '新任务'),
     purpose: String(item.purpose ?? ''),
+    approach: String(item.approach ?? ''),
     detail: String(item.detail ?? ''),
     notes: String(item.notes ?? ''),
     dropped: item.dropped === true,
@@ -489,6 +493,7 @@ export function applyOps(state, { board: boardKey, op, deleteMode, nodes: items 
     if (!node) continue
     if (item.title != null) node.title = String(item.title)
     if (item.purpose != null) node.purpose = String(item.purpose)
+    if (item.approach != null) node.approach = String(item.approach)
     if (item.detail != null) node.detail = String(item.detail)
     if (item.notes != null) node.notes = String(item.notes)
     if (item.dropped != null) {
