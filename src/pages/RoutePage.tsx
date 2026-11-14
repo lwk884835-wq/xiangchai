@@ -379,110 +379,110 @@ export function RoutePage({
           </div>
 
           <section className="rounded-[16px] border border-line/60 bg-surface shadow-e1">
-            <header className="flex items-center gap-2 border-b border-line/70 px-5 pt-3.5 pb-[18px]">
+            <header className="sticky top-0 z-30 flex items-center gap-2 rounded-t-[16px] border-b border-line/70 bg-surface px-5 py-2">
               <h2 className="shrink-0 text-[14px] font-semibold tracking-tight">路线</h2>
-              <span className="hidden truncate text-[12px] text-faint lg:inline">
+              <span className="hidden min-w-0 flex-1 truncate text-[12px] text-faint lg:inline">
                 勾父任务会连带勾上子任务 · 勾后面一步会连带勾上前面的
               </span>
-            </header>
-            {/* 工具条骑在「路线」那条分割线上：-mt 上移半个按钮高度，上半压在 header 里、下半到线下 */}
-            <div className="pointer-events-none sticky top-2 z-30 -mt-[14px] flex items-center justify-between gap-2 px-5">
-              <div className="pointer-events-auto flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    const label = undo()
-                    if (label) toast(`已撤回${label}`)
-                  }}
-                  disabled={!history.length}
-                  title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
-                  className="flex h-[27px] shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2.5 text-[11px] text-muted shadow-e2 backdrop-blur transition-colors hover:text-ink disabled:cursor-default disabled:opacity-35"
-                >
-                  <Undo2 size={11} />
-                  撤回{history[0]?.label ?? ''}
-                </button>
-                <button
-                  onClick={() => {
-                    const label = redo()
-                    if (label) toast(`已回到${label}`)
-                  }}
-                  disabled={!redoHistory.length}
-                  title="回到下一步（撤销多了可以救回来）"
-                  className="flex h-[27px] shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2.5 text-[11px] text-muted shadow-e2 backdrop-blur transition-colors hover:text-ink disabled:cursor-default disabled:opacity-35"
-                >
-                  <Redo2 size={11} />
-                  回到下一步{redoHistory[0] ? ` · ${redoHistory[0].label}` : ''}
-                </button>
-              </div>
-
-              <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2 py-[3px] shadow-e2 backdrop-blur">
-                <Search size={12} className="shrink-0 text-faint" />
-                <input
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value)
-                    if (codeJump) setCodeJump(null)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      if (codeHit) {
-                        jumpToCode(codeHit)
-                        return
-                      }
-                      if (looksLikeCode(search) && !matches.length) {
-                        toast(`没找到「${search.trim()}」，可能是打错了，或者这张卡已经删了`)
-                        return
-                      }
-                      stepMatch(e.shiftKey ? -1 : 1)
-                    }
-                    if (e.key === 'Escape') {
-                      setSearch('')
-                      setCodeJump(null)
-                    }
-                  }}
-                  placeholder="找卡片 / 输码…"
-                  title="输入关键词找卡片，回车跳下一张（Shift+回车上一张）；输入 5 位码（如 #BCU5C）回车直接跳到那张卡或那条路线"
-                  className="w-[104px] bg-transparent text-[12px] text-ink outline-none transition-[width] placeholder:text-faint focus:w-[168px]"
-                />
-                {codeHit ? (
-                  <span
-                    className="flex max-w-[190px] shrink-0 items-center gap-1 truncate text-[10px] text-muted"
-                    title={`按回车跳到${codeHit.kind === 'route' ? '路线' : '卡片'}：${codeHit.title}`}
+              {/* 撤回 / 回到下一步 / 搜索跟标题同一行，整条 header 看起来是一块固定栏 */}
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      const label = undo()
+                      if (label) toast(`已撤回${label}`)
+                    }}
+                    disabled={!history.length}
+                    title="撤回上一步（勾选 / 删除 / 拖拽都能退）"
+                    className="flex h-[27px] shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2.5 text-[11px] text-muted shadow-e2 backdrop-blur transition-colors hover:text-ink disabled:cursor-default disabled:opacity-35"
                   >
-                    <span className="flex h-[14px] shrink-0 items-center rounded bg-surface-3 px-1 text-muted">
-                      <CornerDownLeft size={9} strokeWidth={2.5} />
-                    </span>
-                    <span className="truncate">
-                      {codeHit.kind === 'route' ? '路线' : '卡片'} · {codeHit.title}
-                    </span>
-                  </span>
-                ) : (
-                  searchQ && (
-                    <span className="shrink-0 text-[10px] text-faint">
-                      {matches.length ? `${Math.min(matchIdx + 1, matches.length)}/${matches.length}` : '0'}
-                    </span>
-                  )
-                )}
-                <button
-                  onClick={() => stepMatch(-1)}
-                  disabled={!matches.length}
-                  title="上一张（Shift+回车）"
-                  className="flex h-[20px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30"
-                >
-                  <ChevronUp size={12} />
-                </button>
-                <button
-                  onClick={() => stepMatch(1)}
-                  disabled={!matches.length}
-                  title="下一张（回车）"
-                  className="flex h-[20px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30"
-                >
-                  <ChevronDown size={12} />
-                </button>
-              </div>
-            </div>
+                    <Undo2 size={11} />
+                    撤回{history[0]?.label ?? ''}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const label = redo()
+                      if (label) toast(`已回到${label}`)
+                    }}
+                    disabled={!redoHistory.length}
+                    title="回到下一步（撤销多了可以救回来）"
+                    className="flex h-[27px] shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2.5 text-[11px] text-muted shadow-e2 backdrop-blur transition-colors hover:text-ink disabled:cursor-default disabled:opacity-35"
+                  >
+                    <Redo2 size={11} />
+                    回到下一步{redoHistory[0] ? ` · ${redoHistory[0].label}` : ''}
+                  </button>
+                </div>
 
-            <div className="px-3 pt-[18px] pb-3 xl:px-4 xl:pt-5 xl:pb-4">
+                <div className="flex shrink-0 items-center gap-1 rounded-full border border-line/70 bg-surface/95 px-2 py-[3px] shadow-e2 backdrop-blur">
+                  <Search size={12} className="shrink-0 text-faint" />
+                  <input
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value)
+                      if (codeJump) setCodeJump(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (codeHit) {
+                          jumpToCode(codeHit)
+                          return
+                        }
+                        if (looksLikeCode(search) && !matches.length) {
+                          toast(`没找到「${search.trim()}」，可能是打错了，或者这张卡已经删了`)
+                          return
+                        }
+                        stepMatch(e.shiftKey ? -1 : 1)
+                      }
+                      if (e.key === 'Escape') {
+                        setSearch('')
+                        setCodeJump(null)
+                      }
+                    }}
+                    placeholder="找卡片 / 输码…"
+                    title="输入关键词找卡片，回车跳下一张（Shift+回车上一张）；输入 5 位码（如 #BCU5C）回车直接跳到那张卡或那条路线"
+                    className="w-[104px] bg-transparent text-[12px] text-ink outline-none transition-[width] placeholder:text-faint focus:w-[168px]"
+                  />
+                  {codeHit ? (
+                    <span
+                      className="flex max-w-[190px] shrink-0 items-center gap-1 truncate text-[10px] text-muted"
+                      title={`按回车跳到${codeHit.kind === 'route' ? '路线' : '卡片'}：${codeHit.title}`}
+                    >
+                      <span className="flex h-[14px] shrink-0 items-center rounded bg-surface-3 px-1 text-muted">
+                        <CornerDownLeft size={9} strokeWidth={2.5} />
+                      </span>
+                      <span className="truncate">
+                        {codeHit.kind === 'route' ? '路线' : '卡片'} · {codeHit.title}
+                      </span>
+                    </span>
+                  ) : (
+                    searchQ && (
+                      <span className="shrink-0 text-[10px] text-faint">
+                        {matches.length ? `${Math.min(matchIdx + 1, matches.length)}/${matches.length}` : '0'}
+                      </span>
+                    )
+                  )}
+                  <button
+                    onClick={() => stepMatch(-1)}
+                    disabled={!matches.length}
+                    title="上一张（Shift+回车）"
+                    className="flex h-[20px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30"
+                  >
+                    <ChevronUp size={12} />
+                  </button>
+                  <button
+                    onClick={() => stepMatch(1)}
+                    disabled={!matches.length}
+                    title="下一张（回车）"
+                    className="flex h-[20px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink disabled:opacity-30"
+                  >
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div className="px-3 py-3 xl:px-4 xl:py-4">
               <RouteBoard
                 nodes={viewNodes}
                 collapsed={collapsed}
