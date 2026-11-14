@@ -308,12 +308,10 @@ export const RouteBoard = memo(function RouteBoard({
   const menuRef = useRef<HTMLDivElement>(null)
   /** 路线区外框（空态也挂），夹菜单时用来避开左右两边栏 */
   const boardAreaRef = useRef<HTMLDivElement>(null)
-  const [menuPos, setMenuPos] = useState({ left: 0, top: 0 })
+  const [menuBox, setMenuBox] = useState({ left: 0, top: 0, maxHeight: 480, maxWidth: 238 })
   useLayoutEffect(() => {
     if (!ctxMenu) return
     const el = menuRef.current
-    const w = el?.offsetWidth ?? 238
-    const h = el?.offsetHeight ?? 320
     const margin = 8
     /*
       右边栏（路线列表）会盖住路线区右侧一块，不能只按 window 宽度夹：
@@ -322,16 +320,34 @@ export const RouteBoard = memo(function RouteBoard({
     const area =
       scrollRef.current?.getBoundingClientRect() ??
       boardAreaRef.current?.getBoundingClientRect()
-    const minLeft = area ? area.left + margin : margin
-    const maxRight = area ? area.right - margin : window.innerWidth - margin
+    const minLeft = (area ? area.left : 0) + margin
+    const maxRight = Math.min(window.innerWidth - margin, area ? area.right - margin : window.innerWidth - margin)
     const minTop = Math.max(margin, area ? area.top + margin : margin)
-    const maxBottom = Math.min(window.innerHeight - margin, area ? area.bottom - margin : Infinity)
-    const left = Math.min(Math.max(ctxMenu.x, minLeft), Math.max(minLeft, maxRight - w))
-    const top = Math.min(
-      Math.max(ctxMenu.y, minTop),
-      Math.max(minTop, (Number.isFinite(maxBottom) ? maxBottom : window.innerHeight - margin) - h),
+    const maxBottom = Math.min(window.innerHeight - margin, area ? area.bottom - margin : window.innerHeight - margin)
+    const availH = Math.max(1, maxBottom - minTop)
+
+    const w = el?.offsetWidth || 238
+    /* 用 scrollHeight 量「不受限时」的自然高度——offsetHeight 已经被上一轮的 maxHeight 卡过了 */
+    const naturalH = Math.max(el?.scrollHeight || 320, 1)
+
+    // 横向：整块塞进路线区；区域比菜单还窄时把菜单压窄（文字换行），不越到右边栏上
+    const maxW = Math.max(160, maxRight - minLeft)
+    const left = Math.min(
+      Math.max(ctxMenu.x, minLeft),
+      Math.max(minLeft, maxRight - Math.min(w, maxW)),
     )
-    setMenuPos({ left, top })
+
+    // 纵向：下方放得下就往下 → 只够上方就翻到上面 → 两边都不够就截高度、内部滚动
+    const height = Math.min(naturalH, availH)
+    const spaceBelow = maxBottom - ctxMenu.y
+    const spaceAbove = ctxMenu.y - minTop
+    let top: number
+    if (naturalH <= spaceBelow) top = ctxMenu.y
+    else if (naturalH <= spaceAbove) top = ctxMenu.y - naturalH
+    else top = spaceBelow >= spaceAbove ? ctxMenu.y : ctxMenu.y - height
+    top = Math.min(Math.max(top, minTop), Math.max(minTop, maxBottom - height))
+
+    setMenuBox({ left, top, maxHeight: height, maxWidth: maxW })
   }, [ctxMenu])
   /** 键盘复制/粘贴时，光标停在哪个卡片上 */
   const hoveredRef = useRef<string | null>(null)
@@ -339,7 +355,7 @@ export const RouteBoard = memo(function RouteBoard({
   const openCtxMenu = (nodeId: string | undefined, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setMenuPos({ left: e.clientX, top: e.clientY })
+    setMenuBox({ left: e.clientX, top: e.clientY, maxHeight: 480, maxWidth: 238 })
     setCtxMenu({ nodeId, x: e.clientX, y: e.clientY })
   }
 
@@ -777,9 +793,10 @@ export const RouteBoard = memo(function RouteBoard({
               ref={menuRef}
               className="anim-pop fixed z-50 w-[238px] overflow-x-hidden overflow-y-auto rounded-[14px] border border-line/70 bg-surface p-1.5 shadow-e3"
               style={{
-                left: menuPos.left,
-                top: menuPos.top,
-                maxHeight: 'calc(100vh - 16px)',
+                left: menuBox.left,
+                top: menuBox.top,
+                maxHeight: menuBox.maxHeight,
+                maxWidth: menuBox.maxWidth,
               }}
               onClick={(e) => e.stopPropagation()}
             >
