@@ -99,13 +99,15 @@ export function RoutePage({
   const progress = actionProgress(nodes)
 
   const addGoal = () => {
+    /* 26.11.14：不再自动定到重点。以前重点面板只放这条路线的重点，
+       空路线里放个根任务当锚点还算合理；现在重点面板是「所有路线的重点」
+       汇总，新任务默认挤进去只是噪音。要定就自己点图钉。 */
     const id = addNode({
       title: '新目标',
       purpose: '',
       detail: '',
       level: 1,
       parentId: null,
-      pinned: true,
     })
     setOpenId(id)
   }
