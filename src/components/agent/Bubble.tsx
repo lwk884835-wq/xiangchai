@@ -135,7 +135,7 @@ export function Bubble({
                   setEditing(false)
                 }}
                 disabled={!draft.trim()}
-                className="rounded-md bg-ink px-2.5 py-1 text-[11px] text-white transition-colors hover:bg-[#2b2930] disabled:opacity-40"
+                className="rounded-md bg-ink px-2.5 py-1 text-[11px] text-on-ink transition-colors hover:bg-ink-hover disabled:opacity-40"
               >
                 重新发送
               </button>

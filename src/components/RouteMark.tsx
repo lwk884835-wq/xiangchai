@@ -9,7 +9,7 @@ export function RouteMark({ size = 26, className }: { size?: number; className?:
   return (
     <span
       className={cn(
-        'flex items-center justify-center rounded-[9px] bg-ink text-white',
+        'flex items-center justify-center rounded-[9px] bg-ink text-on-ink',
         className,
       )}
       style={{ width: size, height: size }}

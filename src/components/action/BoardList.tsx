@@ -357,7 +357,7 @@ export function BoardList() {
                 removeBoard(b.id)
                 setConfirmId(null)
               }}
-              className="ml-auto rounded-md bg-danger px-1.5 py-[2px] text-[11px] text-white transition-opacity hover:opacity-85"
+              className="ml-auto rounded-md bg-danger px-1.5 py-[2px] text-[11px] text-on-danger transition-opacity hover:opacity-85"
             >
               删除
             </button>
@@ -448,7 +448,7 @@ export function BoardList() {
             />
             <button
               onClick={createFolder}
-              className="rounded-md bg-ink px-2 py-[3px] text-[11px] text-white"
+              className="rounded-md bg-ink px-2 py-[3px] text-[11px] text-on-ink"
             >
               建
             </button>
@@ -768,7 +768,7 @@ export function BoardList() {
                       addFolder(name)
                       moveTo(name)
                     }}
-                    className="rounded-md bg-ink px-2 py-[3px] text-[11px] text-white"
+                    className="rounded-md bg-ink px-2 py-[3px] text-[11px] text-on-ink"
                   >
                     建
                   </button>

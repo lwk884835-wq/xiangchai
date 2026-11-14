@@ -861,7 +861,7 @@ export function NodeDrawer({
                         }}
                         className={cn(
                           'flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-[3px] border',
-                          k.done ? 'border-ok bg-ok text-white' : 'border-line-2',
+                          k.done ? 'border-ok bg-ok text-on-ok' : 'border-line-2',
                         )}
                       >
                         {k.done && <Check size={8} strokeWidth={3} />}
@@ -1006,7 +1006,7 @@ export function NodeDrawer({
                 <button
                   onClick={addChild}
                   disabled={!childTitle.trim()}
-                  className="ml-auto rounded-md bg-ink px-2.5 py-[3px] text-[11px] text-white transition-opacity hover:opacity-85 disabled:opacity-30"
+                  className="ml-auto rounded-md bg-ink px-2.5 py-[3px] text-[11px] text-on-ink transition-opacity hover:opacity-85 disabled:opacity-30"
                 >
                   添加（⌘↩）
                 </button>
@@ -1089,7 +1089,7 @@ export function NodeDrawer({
           <span className="shrink-0 text-[10px] text-faint">回车 / ⌘回车 保存</span>
           <button
             onClick={commitEdits}
-            className="flex h-[26px] items-center gap-1 rounded-[8px] bg-ink px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+            className="flex h-[26px] items-center gap-1 rounded-[8px] bg-ink px-3 text-[12px] font-medium text-on-ink transition-opacity hover:opacity-90"
           >
             <Check size={12} strokeWidth={2.4} />
             确定

@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionNode } from '@/types'
-import { ChevronDown, ChevronUp, CornerDownLeft, PanelLeftClose, Redo2, Search, Undo2 } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  CornerDownLeft,
+  Moon,
+  PanelLeftClose,
+  Redo2,
+  Search,
+  Sun,
+  Undo2,
+} from 'lucide-react'
 import { actionProgress, useActions } from '@/store/actions'
 import { ACTION_SEED } from '@/data/actionSeed'
 import { useUi } from '@/store/ui'
@@ -12,6 +22,7 @@ import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
 import { NodeDrawer } from '@/components/action/NodeDrawer'
 import { BoardList } from '@/components/action/BoardList'
+import { applyTheme, readTheme, rememberTheme, type Theme } from '@/lib/theme'
 
 function dateLine() {
   const now = new Date()
@@ -58,6 +69,16 @@ export function RoutePage({
   const [highlightNonce, setHighlightNonce] = useState(0)
   /** 搜索框里输码跳过去的目标：比关键词匹配优先，render 后滚过去闪一下 */
   const [codeJump, setCodeJump] = useState<{ id: string; nonce: number; code: string } | null>(null)
+  /* 主题：进来先按上次的选择（没选过就跟随系统），切换后记住 */
+  const [theme, setTheme] = useState<Theme>(() => readTheme())
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
+  const toggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    rememberTheme(next)
+  }
   const contentRef = useRef<HTMLDivElement>(null)
   const focusWrapRef = useRef<HTMLDivElement>(null)
 
@@ -342,6 +363,14 @@ export function RoutePage({
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? '切回浅色' : '切到深色'}
+              aria-label={theme === 'dark' ? '切回浅色' : '切到深色'}
+              className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-line/70 bg-surface text-muted transition-colors hover:border-line-2 hover:text-ink"
+            >
+              {theme === 'dark' ? <Moon size={15} strokeWidth={1.9} /> : <Sun size={15} strokeWidth={1.9} />}
+            </button>
             <button
               onClick={onToggleAgent}
               className={cn(

@@ -29,9 +29,11 @@ const EMPTY_ANCHORS: Map<string, string> = new Map()
 type NodeOwner = { boardId: string; origId: string }
 const EMPTY_OWNERS: Map<string, NodeOwner> = new Map()
 
-const TRUNK = '#ddd5fb'
-const CURVE = '#b9aef5'
-const TIP = '#7c6cf0'
+/* 连线色走 CSS 变量，深色模式下整套换掉（见 index.css 的 html[data-theme="dark"]）。
+   SVG 的 presentation attribute 不解析 var()，所以下面挂在 style 上。 */
+const TRUNK = 'var(--route-trunk)'
+const CURVE = 'var(--route-curve)'
+const TIP = 'var(--route-tip)'
 
 /** 一段线：trunk 竖主干、branch 分叉/曲线、tip 尖角 */
 type Seg = { d: string; tone: 'trunk' | 'branch' | 'tip' }
@@ -1123,7 +1125,7 @@ export const RouteBoard = memo(function RouteBoard({
                 key={i}
                 d={p.d}
                 fill="none"
-                stroke={p.tone === 'tip' ? TIP : p.tone === 'trunk' ? TRUNK : CURVE}
+                style={{ stroke: p.tone === 'tip' ? TIP : p.tone === 'trunk' ? TRUNK : CURVE }}
                 strokeWidth={p.tone === 'tip' ? 2 : p.tone === 'trunk' ? 1.2 : 1.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"

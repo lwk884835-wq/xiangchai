@@ -9,6 +9,24 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261102b" />
     <meta name="theme-color" content="#f0ece3" />
     <title>想拆 · 把想做的事拆成能走的步骤</title>
+    <script>
+      /* 首屏定主题：必须在样式表之前跑，否则深色用户会先闪一帧白纸。
+         跟 src/lib/theme.ts 用同一个 key，逻辑保持最小份拷贝。 */
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('work-route-theme')
+          var dark =
+            saved === 'dark' ||
+            (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) {
+            document.documentElement.dataset.theme = 'dark'
+            document.documentElement.style.colorScheme = 'dark'
+            var m = document.querySelector('meta[name="theme-color"]')
+            if (m) m.setAttribute('content', '#171512')
+          }
+        } catch (e) {}
+      })()
+    </script>
     <meta
       name="description"
       content="想拆：一条能长期看下去的行动路线——目标 → 几条并行的线 → 具体动作。数据和进度都留在你自己的浏览器里。"

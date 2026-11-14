@@ -147,7 +147,7 @@ export const NodeCard = memo(function NodeCard({
         draggable && 'cursor-grab active:cursor-grabbing',
         dragging && 'opacity-40',
         dropTarget && 'ring-2 ring-accent ring-offset-1 ring-offset-surface',
-        linked && 'border-[2.5px] border-[#3b82f6] ring-0 shadow-[0_0_0_1px_rgba(59,130,246,0.22)]',
+        linked && 'card-linked ring-0',
         flash && 'flash-hit',
       )}
     >
@@ -181,7 +181,7 @@ export const NodeCard = memo(function NodeCard({
               dropped
                 ? 'cursor-not-allowed border-line-2 bg-surface-3 text-faint'
                 : node.done
-                  ? 'border-ok bg-ok text-white'
+                  ? 'border-ok bg-ok text-on-ok'
                   : 'border-line-2 hover:border-ink',
             )}
             title={dropped ? '已标记「不太合适」，不参与勾选' : node.done ? '已完成' : '标记完成'}

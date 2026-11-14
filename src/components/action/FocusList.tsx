@@ -19,7 +19,7 @@ function SerialLink({ left }: { left: number }) {
       <path
         d="M2.2 0.5 L5 4.6 L7.8 0.5"
         fill="none"
-        stroke="#8b7ff5"
+        style={{ stroke: 'var(--route-tip)' }}
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -269,7 +269,7 @@ export function FocusList({
                         onClick={() => toggleNode(r.node.id, g.boardId)}
                         className={cn(
                           'flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-[5px] border transition-all duration-150 active:scale-90',
-                          r.node.done ? 'border-ok bg-ok text-white' : 'border-line-2 hover:border-ink',
+                          r.node.done ? 'border-ok bg-ok text-on-ok' : 'border-line-2 hover:border-ink',
                         )}
                       >
                         {r.node.done && <Check size={10} strokeWidth={3} />}
@@ -321,7 +321,7 @@ export function FocusList({
               onClick={() => toggleFocusItem(f.id)}
               className={cn(
                 'flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-[3px] border transition-all duration-150 active:scale-90',
-                f.done ? 'border-ok bg-ok text-white' : 'border-line-2 hover:border-ink',
+                f.done ? 'border-ok bg-ok text-on-ok' : 'border-line-2 hover:border-ink',
               )}
             >
               {f.done && <Check size={9} strokeWidth={3} />}

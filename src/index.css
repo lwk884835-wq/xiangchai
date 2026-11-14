@@ -25,12 +25,32 @@
   --color-accent-ink: #372db0;
   --color-accent-soft: #efedfd;
   --color-accent-line: #d8d2fb;
+  --color-accent-hover: #443abf;
+  --color-line-hover: #c3bcad;
+  /* 链接进来的卡用的蓝，跟 accent 紫区分开 */
+  --color-link: #3b82f6;
   --color-ok: #14724a;
   --color-ok-soft: #e7f4ec;
   --color-warn: #9a5f0b;
   --color-warn-soft: #fcf1df;
   --color-danger: #b23b24;
   --color-danger-soft: #fbeae5;
+  /* 「ink 当底色」时上面该用什么字色：浅色模式是白，深色模式反过来是暗 */
+  --color-on-ink: #ffffff;
+  --color-on-ok: #ffffff;
+  --color-on-danger: #ffffff;
+  --color-ink-hover: #2b2930;
+  /* 连线：树干 / 弯折 / 箭头尖 */
+  --route-trunk: #ddd5fb;
+  --route-curve: #b9aef5;
+  --route-tip: #7c6cf0;
+  /* 画布上那两团柔光、滚动条、选中高亮，深色下要换一整套 */
+  --canvas-glow-1: #fbf9f4;
+  --canvas-glow-2: #f5f1e7;
+  --scroll-thumb: #d5d0c4;
+  --scroll-thumb-hover: #bdb7a9;
+  --select-bg: #dcd7fb;
+  --select-ink: #221d6b;
 
   --radius-control: 10px;
   --radius-card: 14px;
@@ -45,6 +65,64 @@
   --shadow-e1: 0 1px 2px rgba(26, 23, 18, 0.05), 0 2px 8px -2px rgba(26, 23, 18, 0.07);
   --shadow-e2: 0 2px 6px rgba(26, 23, 18, 0.05), 0 16px 32px -16px rgba(26, 23, 18, 0.16);
   --shadow-e3: 0 8px 20px -6px rgba(24, 22, 20, 0.14), 0 28px 64px -28px rgba(24, 22, 20, 0.26);
+}
+
+/* ============================================================
+   深色模式
+   只换这一层语义 token 的值，组件一个都不用动——
+   全站的工具类（bg-surface / text-ink / border-line…）都吃 var(--color-*)。
+   底色仍然是「暖」的，只是从纸变成夜里的一张深色桌，不用蓝灰那种冷调。
+   ============================================================ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #171512;
+  --color-surface: #201e19;
+  --color-surface-2: #1a1814;
+  --color-surface-3: #272420;
+  --color-desk: #100f0c;
+  --color-ink: #f2eee5;
+  --color-ink-2: #ccc5b7;
+  --color-muted: #988f80;
+  --color-faint: #6f685c;
+  --color-line: #2c2921;
+  --color-line-2: #3b372d;
+
+  /* accent 在深底上要提亮，否则沉得看不见 */
+  --color-accent: #8f83f7;
+  --color-accent-ink: #b7adff;
+  --color-accent-soft: #241f45;
+  --color-accent-line: #3a3268;
+  --color-accent-hover: #a195ff;
+  --color-link: #6aa5ff;
+
+  --color-ok: #48c08a;
+  --color-ok-soft: #14301f;
+  --color-warn: #dfa657;
+  --color-warn-soft: #2f2611;
+  --color-danger: #ef7357;
+  --color-danger-soft: #37201a;
+
+  --color-on-ink: #171512;
+  --color-on-ok: #0e1a13;
+  --color-on-danger: #2a1109;
+  --color-ink-hover: #ded8cc;
+
+  --route-trunk: #37315f;
+  --route-curve: #4a4180;
+  --route-tip: #8f83f7;
+
+  --canvas-glow-1: #201d18;
+  --canvas-glow-2: #1a1814;
+  --scroll-thumb: #353229;
+  --scroll-thumb-hover: #484336;
+  --select-bg: #3a3268;
+  --select-ink: #e2dcff;
+
+  /* 夜里阴影本来就看不见，改靠更深的沉影撑层高，边界交给 1px 细线 */
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.45), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  --shadow-e2: 0 2px 6px rgba(0, 0, 0, 0.4), 0 16px 32px -16px rgba(0, 0, 0, 0.7);
+  --shadow-e3: 0 8px 20px -6px rgba(0, 0, 0, 0.6), 0 28px 64px -28px rgba(0, 0, 0, 0.85);
 }
 
 @layer base {
@@ -118,8 +196,8 @@
     }
   }
   ::selection {
-    background: #dcd7fb;
-    color: #221d6b;
+    background: var(--select-bg);
+    color: var(--select-ink);
   }
   button {
     cursor: pointer;
@@ -136,20 +214,20 @@
   /* 细一点的滚动条，别抢视觉 */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #d5d0c4 transparent;
+    scrollbar-color: var(--scroll-thumb) transparent;
   }
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #d5d0c4;
+    background: var(--scroll-thumb);
     border-radius: 99px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: #bdb7a9;
+    background: var(--scroll-thumb-hover);
     background-clip: content-box;
   }
 }
@@ -187,30 +265,30 @@
   }
   .btn-ink {
     background: var(--color-ink);
-    color: #fff;
-    box-shadow: 0 1px 2px rgba(23, 22, 26, 0.2);
+    color: var(--color-on-ink);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 20%, transparent);
   }
   .btn-ink:hover {
-    background: #2b2930;
+    background: var(--color-ink-hover);
   }
   .btn-line {
     background: var(--color-surface);
     border-color: var(--color-line-2);
     color: var(--color-ink-2);
-    box-shadow: 0 1px 1px rgba(24, 22, 20, 0.03);
+    box-shadow: 0 1px 1px color-mix(in srgb, var(--color-ink) 4%, transparent);
   }
   .btn-line:hover:not(:disabled) {
-    border-color: #c3bcad;
+    border-color: var(--color-line-hover);
     background: var(--color-surface-2);
     box-shadow: var(--shadow-e1);
   }
   .btn-accent {
     background: var(--color-accent);
     color: #fff;
-    box-shadow: 0 1px 2px rgba(79, 69, 214, 0.35);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
   }
   .btn-accent:hover {
-    background: #443abf;
+    background: var(--color-accent-hover);
   }
   .btn-ghost {
     background: transparent;
@@ -219,7 +297,7 @@
     padding: 0 8px;
   }
   .btn-ghost:hover {
-    background: rgba(23, 22, 26, 0.05);
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
     color: var(--color-ink);
   }
   .chip {
@@ -258,7 +336,7 @@
     outline: none;
     background: var(--color-surface);
     border-color: var(--color-accent-line);
-    box-shadow: 0 0 0 3px rgba(75, 65, 210, 0.1);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
   }
   .label {
     font-size: 11px;
@@ -281,8 +359,8 @@
   /* 应用画布：中间亮、边缘略暗，给三栏一个共同的「桌面」而不是三块白板 */
   .app-canvas {
     background:
-      radial-gradient(1100px 520px at 14% -8%, #fbf9f4 0%, rgba(251, 249, 244, 0) 62%),
-      radial-gradient(900px 460px at 102% -12%, #f5f1e7 0%, rgba(245, 241, 231, 0) 58%),
+      radial-gradient(1100px 520px at 14% -8%, var(--canvas-glow-1) 0%, transparent 62%),
+      radial-gradient(900px 460px at 102% -12%, var(--canvas-glow-2) 0%, transparent 58%),
       var(--color-bg);
   }
   .shadow-e1 {
@@ -305,6 +383,11 @@
     卡片背后就是 SVG 连线层，Safari 真机 GPU 合成时，悬停阴影重绘会把
     旁边的子卡/连线带得发颤（鼠标在卡片上时像整块在抽动）。outline 是最便宜的提示。
   */
+  /* 链接进来的卡：蓝色描边（深色下蓝色要提亮，不然在深底上发闷） */
+  .card-linked {
+    border: 2.5px solid var(--color-link);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-link) 22%, transparent);
+  }
   .lift {
     outline: 1px solid transparent;
     outline-offset: -1px;

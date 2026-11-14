@@ -74,7 +74,7 @@ export function Composer({
               onClick={onStop}
               title="停止生成"
               aria-label="停止生成"
-              className="ml-auto flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full bg-ink text-white transition-all hover:bg-[#2b2930]"
+              className="ml-auto flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full bg-ink text-on-ink transition-all hover:bg-ink-hover"
             >
               <Square size={9} fill="currentColor" strokeWidth={0} />
             </button>
@@ -85,7 +85,7 @@ export function Composer({
               title="发送（Enter）"
               className={cn(
                 'ml-auto flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full transition-all',
-                value.trim() ? 'bg-ink text-white hover:bg-[#2b2930]' : 'bg-surface-3 text-faint',
+                value.trim() ? 'bg-ink text-on-ink hover:bg-ink-hover' : 'bg-surface-3 text-faint',
               )}
             >
               <ArrowUp size={14} strokeWidth={2.4} />

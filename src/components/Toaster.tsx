@@ -10,7 +10,7 @@ export function Toaster() {
      * 动画也只用淡入，不带 scale/translate，避免动画期间和之后文字变软。
      */
     <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
-      <div className="anim-fade-in flex h-9 max-w-[calc(100vw-2rem)] items-center rounded-full bg-ink px-4 text-[13px] leading-[16px] text-white shadow-lg shadow-ink/20">
+      <div className="anim-fade-in flex h-9 max-w-[calc(100vw-2rem)] items-center rounded-full bg-ink px-4 text-[13px] leading-[16px] text-on-ink shadow-lg shadow-ink/20">
         {toast}
       </div>
     </div>
