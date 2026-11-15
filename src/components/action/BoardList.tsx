@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Download,
+  ExternalLink,
   Folder,
   FolderInput,
   FolderPlus,
@@ -23,6 +24,7 @@ import type { ActionBoard, ActionNode } from '@/types'
 import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
 import { codeOf, copyText, normCode } from '@/lib/code'
+import { copyNoteLink } from '@/lib/deepLink'
 
 /**
  * 右侧：路线列表。
@@ -284,6 +286,21 @@ export function BoardList() {
               className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
             >
               <Hash size={11} />
+            </button>
+            <button
+              onClick={() => {
+                void copyNoteLink(b.jobTitle, { boardId: b.id }).then((ok) =>
+                  toast(
+                    ok
+                      ? `已复制路线链接：粘进笔记后显示「${b.jobTitle}」，点开跳回这条路线`
+                      : '复制失败：浏览器不给剪贴板权限',
+                  ),
+                )
+              }}
+              title="复制外部链接（粘进 Obsidian 等笔记，点开在浏览器打开这条路线）"
+              className="flex h-[18px] w-[18px] items-center justify-center rounded text-faint transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              <ExternalLink size={11} />
             </button>
             <button
               onClick={() => {

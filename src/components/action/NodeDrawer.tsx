@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Check, Link2, Pencil, Pin, Trash2, Unlink, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ExternalLink, Link2, Pencil, Pin, Trash2, Unlink, X } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, actionNodeContext, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
@@ -8,6 +8,7 @@ import { useUi } from '@/store/ui'
 const EMPTY_IDS: string[] = []
 import { cn } from '@/lib/cn'
 import { codeOf, copyText } from '@/lib/code'
+import { copyNoteLink } from '@/lib/deepLink'
 import { RichField } from './RichField'
 
 /**
@@ -572,6 +573,22 @@ export function NodeDrawer({
             className="chip font-mono text-[10.5px] tracking-[0.06em] text-muted transition-colors hover:bg-surface-3 hover:text-ink"
           >
             #{codeOf(node.id)}
+          </button>
+          <button
+            onClick={() => {
+              if (!boardId) return
+              void copyNoteLink(node.title, { boardId, nodeId: node.id }).then((ok) =>
+                toast(
+                  ok
+                    ? `已复制链接：粘进笔记后显示「${node.title}」，点开跳回这张卡`
+                    : '复制失败：浏览器不给剪贴板权限',
+                ),
+              )
+            }}
+            title="复制链接（粘进笔记后显示这张卡的标题，点开跳回这里）"
+            className="chip text-muted transition-colors hover:bg-surface-3 hover:text-ink"
+          >
+            <ExternalLink size={10} />
           </button>
           <button
             onClick={() => pinNode(node.id, !node.pinned)}

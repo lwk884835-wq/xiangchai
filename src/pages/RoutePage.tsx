@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   CornerDownLeft,
+  ExternalLink,
   Moon,
   PanelLeftClose,
   Redo2,
@@ -19,6 +20,7 @@ import { useUi } from '@/store/ui'
 import { cn } from '@/lib/cn'
 import { codeOf, copyText, looksLikeCode } from '@/lib/code'
 import { buildCodeIndex, findCodeHits, type CodeHit } from '@/lib/codeIndex'
+import { clearDeepLink, copyNoteLink, readDeepLink } from '@/lib/deepLink'
 import { RouteMark } from '@/components/RouteMark'
 import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
@@ -262,6 +264,67 @@ export function RoutePage({
     return true
   }
 
+  /*
+    深链：从 Obsidian / 别处点回来的链接带着 ?route=…&node=…
+    进来先按它定位那条路线、那张卡，然后把参数从地址栏抹掉（不然他中途切了路线，
+    一刷新又被拽回来）。数据可能还在从 /api/routes 同步，找不到路线就等下一轮再试；
+    过了 5 秒还没有，说明链接指向的路线已经没了，收手并说一声。
+  */
+  const deepLinkDone = useRef(false)
+  const deepLinkDeadline = useRef(0)
+  /** 到点重试用：值变化才能让上面那个 effect 再跑一遍（依赖里放 setter 是没用的，setter 引用永远不变） */
+  const [deepLinkTick, bumpDeepLinkTick] = useState(0)
+  useEffect(() => {
+    if (deepLinkDone.current) return
+    const want = readDeepLink()
+    if (!want.route && !want.node && !want.code) {
+      deepLinkDone.current = true
+      return
+    }
+    if (!deepLinkDeadline.current) deepLinkDeadline.current = Date.now() + 5000
+
+    let boardId = want.route
+    let nodeId = want.node
+    if (want.code) {
+      const hit = findCodeHits(buildCodeIndex(boards), want.code)[0]
+      if (hit) {
+        boardId = hit.boardId
+        if (hit.kind === 'node') nodeId = hit.nodeId
+      }
+    }
+    const target = boardId ? (boards.find((b) => b.id === boardId) ?? null) : null
+
+    if (!target) {
+      if (Date.now() >= deepLinkDeadline.current) {
+        deepLinkDone.current = true
+        clearDeepLink()
+        toast('这个链接指向的路线找不到了，可能已经删掉')
+        return
+      }
+      /* 数据可能还在从 /api/routes 同步：等到截止点再试一次。
+         boards 之后如果不再变化，这个 effect 不会自己重跑，链接就会一直挂在地址栏上。 */
+      const timer = window.setTimeout(
+        () => bumpDeepLinkTick((n) => n + 1),
+        Math.max(50, deepLinkDeadline.current - Date.now()),
+      )
+      return () => window.clearTimeout(timer)
+    }
+
+    deepLinkDone.current = true
+    clearDeepLink()
+    const node = nodeId ? (target.nodes.find((n) => n.id === nodeId) ?? null) : null
+    if (!node) {
+      if (target.id !== activeId) setActive(target.id)
+      toast(`从链接打开路线「${target.jobTitle}」`)
+      return
+    }
+    locateCard(target.id, node.id)
+    setDrawerBoardId(target.id)
+    setOpenId(node.id)
+    toast(`从链接定位到「${node.title}」`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boards, deepLinkTick])
+
   /** 输码跳过去：路线就切过去，卡片就切到它所在路线、展开祖先、滚过去闪一下 */
   const jumpToCode = (hit: CodeHit) => {
     if (hit.kind === 'route') {
@@ -382,6 +445,24 @@ export function RoutePage({
               className="hidden shrink-0 items-center rounded-md px-1.5 py-[3px] font-mono text-[10.5px] tracking-[0.06em] text-faint transition-colors hover:bg-surface-3 hover:text-muted sm:flex"
             >
               #{codeOf(board.id)}
+            </button>
+          )}
+
+          {board && (
+            <button
+              onClick={() => {
+                void copyNoteLink(board.jobTitle, { boardId: board.id }).then((ok) =>
+                  toast(
+                    ok
+                      ? '已复制路线链接：粘进笔记后显示路线名，点开跳回这条路线'
+                      : '复制失败：浏览器不给剪贴板权限',
+                  ),
+                )
+              }}
+              title="复制这条路线的链接（粘进 Obsidian 等笔记，点开跳回这里）"
+              className="hidden shrink-0 items-center rounded-md px-1.5 py-[3px] text-faint transition-colors hover:bg-surface-3 hover:text-ink sm:flex"
+            >
+              <ExternalLink size={12} strokeWidth={1.9} />
             </button>
           )}
 

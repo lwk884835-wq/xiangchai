@@ -1,9 +1,10 @@
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Ban, CheckCheck, ClipboardPaste, Copy, GitBranch, Hash, Link2, ListChecks, Plus, Trash2, Undo2, Unlink } from 'lucide-react'
+import { Ban, CheckCheck, ClipboardPaste, Copy, ExternalLink, GitBranch, Hash, Link2, ListChecks, Plus, Trash2, Undo2, Unlink } from 'lucide-react'
 import type { ActionNode } from '@/types'
 import { childrenOf, useActions } from '@/store/actions'
 import { useUi } from '@/store/ui'
 import { codeOf, copyText } from '@/lib/code'
+import { copyNoteLink } from '@/lib/deepLink'
 import { NodeCard } from './NodeCard'
 import { EmptyState } from '@/components/EmptyState'
 
@@ -369,6 +370,20 @@ export const RouteBoard = memo(function RouteBoard({
     const code = codeOf(id)
     void copyText(`#${code}`).then((ok) =>
       toast(ok ? `已复制卡片码 #${code}` : '复制失败：浏览器不给剪贴板权限'),
+    )
+    setCtxMenu(null)
+  }
+
+  const doCopyNoteLink = (id: string) => {
+    const owner = ownerOf(id)
+    const n = nodes.find((x) => x.id === id)
+    if (!owner || !n) return
+    void copyNoteLink(n.title, { boardId: owner.boardId, nodeId: owner.origId }).then((ok) =>
+      toast(
+        ok
+          ? `已复制链接：粘进笔记后显示「${n.title}」，点开跳到这张卡`
+          : '复制失败：浏览器不给剪贴板权限',
+      ),
     )
     setCtxMenu(null)
   }
@@ -892,6 +907,19 @@ export const RouteBoard = memo(function RouteBoard({
                       复制卡片码
                       <span className="font-mono text-[10.5px] tracking-[0.06em] text-faint">
                         #{codeOf(target.id)}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => doCopyNoteLink(target.id)}
+                    title="粘到 Obsidian 等笔记里：显示的是这张卡的标题，点开跳回这里"
+                    className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-surface-3"
+                  >
+                    <ExternalLink size={12} className="mt-[3px] shrink-0" />
+                    <span>
+                      复制链接
+                      <span className="mt-0.5 block text-[10px] leading-snug text-faint">
+                        粘进笔记显示标题，点开跳回这张卡
                       </span>
                     </span>
                   </button>
