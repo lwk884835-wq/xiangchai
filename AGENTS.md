@@ -48,6 +48,7 @@ scripts/stable-server.mjs  稳定版静态服务 + /api/chat 代理（读 .env.l
 releases/                  构建产物（gitignore，不要提交）
 src/store/actions.ts       路线数据（persist 到 localStorage）——改结构要迁移
 src/lib/tools.ts           内置「路线助手」的工具（read/update/load_skill）
+src/lib/deepLink.ts        深链：?route=<boardId>&node=<nodeId>（也认 ?c=<码>）
 ```
 
 
@@ -79,3 +80,5 @@ lwk 的口径：**以后 5180 由 Agent 改完自动更新，不用再等他确�
   改这块时别把算法复制成两份——两边算出的码不一样，就全乱了。
 - 网页和文件通过 `/api/routes` + SSE 双向同步；纯静态部署没有接口时自动退回 localStorage
 - 真实数据只落本地文件（已 gitignore），不要提交
+- **深链**：`http://127.0.0.1:5180/?route=<boardId>&node=<nodeId>` 打开即定位到那张卡（`?c=<5 位码>` 也认）。
+  往笔记里放链接用 Markdown `[标题](链接)`，别在正文写码
