@@ -1,0 +1,19 @@
+# 跨设备统一换行：仓库里一律 LF，检出时也不做 CRLF 转换。
+# 有 pc 端参与，锁死可以避免「整个文件都变了」的假 diff。
+* text=auto eol=lf
+
+# 二进制，别让 git 尝试合并或换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+
+# 构建产物 / 发布目录是派生物，就算有人手滑 add 也标成二进制免得 diff 撑爆
+dist/** -diff -merge
+releases/** -diff -merge
