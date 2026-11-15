@@ -49,10 +49,18 @@ export function startRouteSync(): void {
   }
 
   const apply = (snap: RouteSnapshot) => {
+    const boards = Array.isArray(snap.boards) ? normalizeBoardsDrops(snap.boards) : []
+    /*
+      「正在看哪条路线」是这台机器上的界面状态，不是数据：本机记着的那条还在，就留着。
+      以前无条件取文件里的值，会把刚发生的事盖回去——深链跳过来的路线（26.11.15 踩过，
+      点链接永远停在上次那条路线）、刚新建并切过去的路线，都会被同步这一下拽回旧的。
+      本机记的那条要是已经被删了，才退回文件里的值。
+    */
+    const keepActive = useActions.getState().activeBoardId
     suppress++
     useActions.setState({
       // 外部改的数据（MCP / 旧版本存档）里灰色可能是旧的：进来时按红卡重推一遍
-      boards: Array.isArray(snap.boards) ? normalizeBoardsDrops(snap.boards) : [],
+      boards,
       focusItems: Array.isArray(snap.focusItems) ? snap.focusItems : [],
       collapsed: snap.collapsed && typeof snap.collapsed === 'object' ? snap.collapsed : {},
       folders: Array.isArray(snap.folders) ? snap.folders : [],
@@ -60,7 +68,10 @@ export function startRouteSync(): void {
         snap.images && typeof snap.images === 'object' && !Array.isArray(snap.images)
           ? snap.images
           : {},
-      activeBoardId: snap.activeBoardId ?? null,
+      activeBoardId:
+        keepActive && boards.some((b) => b.id === keepActive)
+          ? keepActive
+          : (snap.activeBoardId ?? null),
     })
     suppress--
   }
