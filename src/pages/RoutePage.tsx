@@ -7,7 +7,6 @@ import {
   CornerDownLeft,
   ExternalLink,
   Moon,
-  PanelLeftClose,
   Redo2,
   Search,
   Sun,
@@ -21,7 +20,6 @@ import { cn } from '@/lib/cn'
 import { codeOf, copyText, looksLikeCode } from '@/lib/code'
 import { buildCodeIndex, findCodeHits, type CodeHit } from '@/lib/codeIndex'
 import { clearDeepLink, copyNoteLink, readDeepLink } from '@/lib/deepLink'
-import { RouteMark } from '@/components/RouteMark'
 import { FocusList } from '@/components/action/FocusList'
 import { RouteBoard } from '@/components/action/RouteBoard'
 import { NodeDrawer } from '@/components/action/NodeDrawer'
@@ -48,16 +46,7 @@ function dateLine() {
  * 左边是重点清单 + 路线图，右边是这份路线/其它计划的切换栏。
  * 没有 Agent、没有后台：所有交互都是本地的。
  */
-export function RoutePage({
-  agentOpen,
-  flying,
-  onToggleAgent,
-}: {
-  agentOpen: boolean
-  /** 标正在飞：顶部按钮里的图标先藏起来，让飞行体独占 */
-  flying: boolean
-  onToggleAgent: () => void
-}) {
+export function RoutePage() {
   const boards = useActions((s) => s.boards)
   const activeId = useActions((s) => s.activeBoardId)
   const collapsedMap = useActions((s) => s.collapsed)
@@ -540,30 +529,6 @@ export function RoutePage({
                 </div>
               )}
             </div>
-            <button
-              onClick={onToggleAgent}
-              className={cn(
-                'btn overflow-hidden',
-                agentOpen ? 'btn-line' : 'btn-accent',
-              )}
-              style={{
-                width: agentOpen ? 118 : 88,
-                transition:
-                  'width 300ms cubic-bezier(0.22,1,0.36,1), background-color 300ms ease, border-color 300ms ease, color 300ms ease',
-              }}
-              title={agentOpen ? '收起路线 Agent' : '打开路线 Agent（读 / 拆 / 改路线）'}
-            >
-              <span
-                data-agent-entry-icon
-                className={cn(
-                  'flex h-[18px] w-[18px] shrink-0 items-center justify-center transition-opacity duration-200',
-                  flying && 'opacity-0',
-                )}
-              >
-                {agentOpen ? <PanelLeftClose size={16} strokeWidth={1.9} /> : <RouteMark size={18} />}
-              </span>
-              <span className="whitespace-nowrap">{agentOpen ? '收起 Agent' : 'Agent'}</span>
-            </button>
           </div>
         </header>
 

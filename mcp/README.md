@@ -1,7 +1,7 @@
-# 工作路线 MCP server
+# 想拆 MCP server
 
-把「行动路线」暴露成一个 MCP server，让支持 MCP 的客户端（DSH / Claude Desktop / Claude Code / Cursor / VS Code…）
-直接读和改你的路线。
+把「行动路线」暴露成一个 MCP server，让支持 MCP 的客户端（WorkBuddy / 豆包 / Claude Desktop / Claude Code / Cursor / VS Code…）
+直接读和改你的路线。这是本项目唯一的 Agent 入口——应用本身没有内置对话助手。
 
 **数据文件优先级**：
 
@@ -37,13 +37,16 @@ ROUTE_DATA_FILE=../data/routes.json node call.mjs list_routes
 ```json
 {
   "mcpServers": {
-    "work-route": {
+    "xiangchai": {
       "command": "node",
-      "args": ["/Users/lwk/Documents/deepseek-harness/default-workspace/工作路线网页/mcp/server.mjs"]
+      "args": ["<你把仓库克隆到的路径>/mcp/server.mjs"]
     }
   }
 }
 ```
+
+`<你把仓库克隆到的路径>` 换成实际的绝对路径，比如 `/Users/你/xiangchai/mcp/server.mjs`。
+先在这个仓库根目录和 `mcp/` 各跑一次 `npm install`。
 
 **Claude Code / Cursor / 其它 stdio 客户端**：同样是 `command: node` + `args: [server.mjs 绝对路径]`。
 

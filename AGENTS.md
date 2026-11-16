@@ -1,4 +1,4 @@
-# AGENTS.md — 工作路线网页（项目级）
+# AGENTS.md — 想拆（项目级）
 
 > 给**所有会话 / Agent**：这个项目 lwk 已经在自己每天用了，改动前先读完这一页。
 > 人类向的说明在 `README.md`「稳定版 vs 开发版」一节。
@@ -7,7 +7,7 @@
 
 | | 地址 | 怎么来的 | 用途 |
 |---|---|---|---|
-| **稳定版（lwk 日常用）** | http://127.0.0.1:5180 | `releases/current` 里的**构建产物**，由 launchd `com.lwk.work-route-stable` 常驻（`scripts/stable-server.mjs`，含 `/api/chat` 代理） | lwk 每天记路线；**不要拿它做实验** |
+| **稳定版（lwk 日常用）** | http://127.0.0.1:5180 | `releases/current` 里的**构建产物**，由 launchd `com.lwk.work-route-stable` 常驻（`scripts/stable-server.mjs`） | lwk 每天记路线；**不要拿它做实验** |
 | 开发版（改代码用） | http://127.0.0.1:5174 | `npm run dev`（工作区源码 + HMR） | 开发、测试；随时会变 |
 
 - 发布：`npm run release:stable`（默认从 **git HEAD** 构建；`-- <git-ref>` 指定提交/回滚）。
@@ -35,7 +35,7 @@
 
 ## 多会话协作
 
-- 这个仓库可能同时有**别的会话/Agent** 在改（例如路线 Agent 工具、MCP 支持）。开工先 `git status`、`git log -1` 看现状，**不要回滚别人的改动**。
+- 这个仓库可能同时有**别的会话/Agent** 在改（例如 MCP 支持、数据同步）。开工先 `git status`、`git log -1` 看现状，**不要回滚别人的改动**。
 - 提交时只 `git add` 自己改的文件；别 `git add -A` 把别人半成品带进去。
 - 改完保持 `npx tsc --noEmit` 通过；QA 临时脚本用完删掉，不要提交。
 - 稳定版从提交构建：**别人提交的代码也可能被发布**。发布前先看 `git log -1` 是什么，确认那版验证过。
@@ -44,11 +44,11 @@
 
 ```
 scripts/release.mjs        发布：build + 复制到 releases + 切 current + 清理旧版
-scripts/stable-server.mjs  稳定版静态服务 + /api/chat 代理（读 .env.local）
+scripts/stable-server.mjs  稳定版静态服务 + /api/routes 数据接口
 releases/                  构建产物（gitignore，不要提交）
 src/store/actions.ts       路线数据（persist 到 localStorage）——改结构要迁移
-src/lib/tools.ts           内置「路线助手」的工具（read/update/load_skill）
 src/lib/deepLink.ts        深链：?route=<boardId>&node=<nodeId>（也认 ?c=<码>）
+mcp/                       外部 Agent 的 MCP server（本项目唯一的 Agent 入口）
 ```
 
 

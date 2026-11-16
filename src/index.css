@@ -540,25 +540,6 @@ html[data-theme="dark"] {
     transform: none;
   }
 }
-/* 品牌标从导航栏滑到 Agent 面板头部：起点和本体完全重合，像它自己飞过去了 */
-@keyframes mark-fly {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 1;
-  }
-  55% {
-    transform: translate(calc(var(--fly-x) * 1.05), calc(var(--fly-y) * 1.05))
-      scale(calc(var(--fly-s) * 1.1));
-    opacity: 1;
-  }
-  /* 落点就是头像的位置、尺寸和透明度，交接那一下才看不出换了个元素。
-     以前 100% 处 opacity 淡到 0：飞行体先消失、头像后出现，中间空一拍，
-     看着就是「闪一下」。 */
-  100% {
-    transform: translate(var(--fly-x), var(--fly-y)) scale(var(--fly-s));
-    opacity: 1;
-  }
-}
 /* 换页只淡入 + 极小的上移，不用 scale，免得在 fixed 元素上留下层叠上下文 */
 @keyframes page-in {
   from {

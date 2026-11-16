@@ -8,7 +8,6 @@
  *   - 数据存浏览器 localStorage，按 origin 分开，互不干扰；
  *     从开发版搬一次数据：开发版「导出数据」→ 稳定版「导入数据」。
  *
- * /api/chat 也会代理（稳定版里的路线助手要能用），key 读 .env.local。
  */
 import { createServer } from 'node:http'
 import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch } from 'node:fs'
@@ -19,19 +18,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = Number(process.env.PORT ?? 5180)
 const releasesDir = path.join(root, 'releases')
 const currentDir = path.join(releasesDir, 'current')
-const ALLOWED_MODELS = new Set(['deepseek-flash', 'deepseek-chat'])
-const ALLOWED_FIELDS = ['model', 'messages', 'tools', 'tool_choice', 'temperature', 'max_tokens', 'stream']
-
-function readApiKey() {
-  try {
-    const raw = readFileSync(path.join(root, '.env.local'), 'utf8')
-    for (const line of raw.split('\n')) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
-      if (m && m[1] === 'DEEPSEEK_API_KEY') return m[2].replace(/^["']|["']$/g, '')
-    }
-  } catch {}
-  return process.env.DEEPSEEK_API_KEY ?? ''
-}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -53,62 +39,6 @@ function readBody(req) {
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
-}
-
-async function proxyChat(req, res) {
-  if (!currentDir || !existsSync(currentDir)) {
-    res.statusCode = 503
-    res.end(JSON.stringify({ error: '还没有稳定版，先跑 npm run release:stable' }))
-    return
-  }
-  const apiKey = readApiKey()
-  if (!apiKey) {
-    res.statusCode = 500
-    res.end(JSON.stringify({ error: '服务端没有配置 DEEPSEEK_API_KEY（见 .env.local）' }))
-    return
-  }
-  let payload
-  try {
-    payload = JSON.parse((await readBody(req)).toString('utf8') || '{}')
-  } catch {
-    res.statusCode = 400
-    res.end(JSON.stringify({ error: 'body 不是合法 JSON' }))
-    return
-  }
-  const model = String(payload.model ?? '')
-  if (!ALLOWED_MODELS.has(model)) {
-    res.statusCode = 400
-    res.end(JSON.stringify({ error: `不认识的模型：${model}` }))
-    return
-  }
-  const body = { stream: payload.stream !== false }
-  for (const k of ALLOWED_FIELDS) if (payload[k] !== undefined) body[k] = payload[k]
-
-  try {
-    const upstream = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-    })
-    res.statusCode = upstream.status
-    res.setHeader('content-type', upstream.headers.get('content-type') ?? 'text/event-stream')
-    res.setHeader('cache-control', 'no-cache, no-transform')
-    if (!upstream.body) {
-      res.end()
-      return
-    }
-    const reader = upstream.body.getReader()
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      res.write(Buffer.from(value))
-    }
-    res.end()
-  } catch (err) {
-    res.statusCode = 502
-    res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ error: `上游请求失败：${err.message}` }))
-  }
 }
 
 /* ---------- 本地数据 API（给 MCP / 外部 Agent 用，和开发版同一套协议） ---------- */
@@ -227,15 +157,6 @@ function serveStatic(req, res) {
 const server = createServer(async (req, res) => {
   if (req.url?.startsWith('/api/routes')) {
     await handleRoutes(req, res)
-    return
-  }
-  if (req.url?.startsWith('/api/chat')) {
-    if (req.method !== 'POST') {
-      res.statusCode = 405
-      res.end('method not allowed')
-      return
-    }
-    await proxyChat(req, res)
     return
   }
   serveStatic(req, res)
