@@ -11,7 +11,7 @@
  */
 import { createServer } from 'node:http'
 import { spawn, execFile } from 'node:child_process'
-import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch } from 'node:fs'
+import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch, openSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -218,11 +218,13 @@ function handleUpdate(req, res) {
     return
   }
   updateRunning = true
-  // 脱离 5180 的独立进程：服务重启也不会把它带走
+  // 脱离 5180 的独立进程：服务重启也不会把它带走。
+  // stdio 写日志文件而非 ignore：detached 下若丢弃，release.mjs 里的 git archive|tar 会失败。
+  const logFd = openSync(path.join(root, 'data', 'update.log'), 'a')
   const child = spawn(process.execPath, [path.join(root, 'scripts', 'update.mjs')], {
     cwd: root,
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', logFd, logFd],
     env: process.env,
   })
   child.unref()
