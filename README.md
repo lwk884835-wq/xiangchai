@@ -69,7 +69,7 @@ npm run build      # tsc --noEmit + vite build，产出 dist/
 
 - 小圆点（绿色）= 已是最新，点一下可强制重新检查
 - 纯静态部署（没有本地服务）不会出现这个按钮，不影响使用
-- 更新卡住可看 `/tmp/work-route-stable.log` 和 `data/update-state.json`
+- 更新卡住可看 `data/update.log`（执行过程）、`data/update-state.json`（当前状态）和 `/tmp/work-route-stable.log`（服务本身）
 - 前提：本机工作区没有未提交改动；有改动时更新会停下并提示，避免覆盖你正在写的东西
 
 ## 数据
@@ -124,5 +124,3 @@ scripts/                  稳定版的构建与常驻服务
 `list_routes` 列路线、`read_route` 读树、`apply_plan_ops` 增删改、`move_nodes` 移动、`set_done` 勾选、`manage_routes` 管路线、`focus_items` 管重点、`find_code`/`list_codes` 按码定位。改完网页自动刷新。
 
 **注意**：改数据前先备份；所有 `board`/`node`/`id` 参数都能填 5 位码、id 或标题；数据文件里 `images` 存内嵌图片，写操作不要丢。
-# 更新日志位置：data/update.log（触发更新时自动写入，排查用）
-# 更新状态文件：data/update-state.json（前端读取显示进度）
