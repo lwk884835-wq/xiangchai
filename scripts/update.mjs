@@ -21,6 +21,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const stateFile = path.join(root, 'data', 'update-state.json')
 const log = (m) => console.log(`[update] ${m}`)
 
+// 从 launchd 启动时 PATH 很干净，npm 不在里面（release.mjs 里要跑 npm run build）。
+// 当前 node 的目录就是 npm 的目录，显式补进去；去重后放到最前。
+const binDir = path.dirname(process.execPath)
+process.env.PATH = [binDir, process.env.PATH ?? '']
+  .filter((p, i, a) => p && a.indexOf(p) === i)
+  .join(path.delimiter)
+
 function state(phase, message, extra = {}) {
   try {
     mkdirSync(path.dirname(stateFile), { recursive: true })
