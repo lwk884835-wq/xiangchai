@@ -7,13 +7,30 @@
 
 | | 地址 | 怎么来的 | 用途 |
 |---|---|---|---|
-| **稳定版（lwk 日常用）** | http://127.0.0.1:5180 | `releases/current` 里的**构建产物**，由 launchd `com.lwk.work-route-stable` 常驻（`scripts/stable-server.mjs`） | lwk 每天记路线；**不要拿它做实验** |
+| **稳定版（lwk 日常用）** | http://127.0.0.1:5180 | `releases/current` 里的**构建产物**；服务本身是 `scripts/stable-server.mjs`，macOS 由 launchd `com.lwk.work-route-stable` 常驻、Windows 由计划任务 `想拆-稳定版` 常驻（`scripts/win/supervisor.mjs`） | lwk 每天记路线；**不要拿它做实验** |
 | 开发版（改代码用） | http://127.0.0.1:5174 | `npm run dev`（工作区源码 + HMR） | 开发、测试；随时会变 |
 
 - 发布：`npm run release:stable`（默认从 **git HEAD** 构建；`-- <git-ref>` 指定提交/回滚）。
 - **发布只认提交**：工作区没提交的改动不会进稳定版——这是故意的，别为了「让 lwk 看到」去手动改 `releases/current`。
-- 版本目录 `releases/<时间>-<sha>/`，保留最近 6 个；服务永远读 `releases/current` 软链。
+- 版本目录 `releases/<时间>-<sha>/`，保留最近 6 个；服务永远读 `releases/current` 软链（Windows 上是 junction，同样能用）。
 - 发布前：`npm run build` 通过 + 开发版真点一遍；发布后告诉 lwk 刷新 5180。
+
+## Windows 上的部署（26.11.17 起）
+
+同一套代码两端跑，**不推两个包**：脚本按 `process.platform` 分支，macOS 路径保持原样。
+
+| 环节 | macOS | Windows |
+|---|---|---|
+| 构建产物 | `git archive \| tar` + 目录软链 | `git worktree` 导出 + junction（不需要管理员） |
+| 服务常驻 | launchd `com.lwk.work-route-stable` | 计划任务 `想拆-稳定版`（登录时触发）→ `node scripts/win/supervisor.mjs` |
+| 重启服务 | `launchctl kickstart -k` | 杀 `data/stable-server.pid`，守护进程 2 秒后自动拉起 |
+| node 来源 | 系统 node | 项目内 `data/node/node.exe`（单文件复制，跟 WorkBuddy 版本解耦） |
+
+- Windows 守护进程：跑 `stable-server.mjs` 子进程，退出就重启（等价 launchd KeepAlive），启动时若 5180 已被占用则自动退出。
+- Windows 日志：`data/stable-server.log`（服务输出）、`data/supervisor.pid`（守护 PID）、`data/stable-server.pid`（服务 PID）。
+- 本机安全策略拦 `wscript`/`cscript`/`powershell` 作为计划任务动作，所以守护用 **node** 写；别再改成 VBS/PS1。
+- `data/` 被 Syncthing 同步（只同步 `routes-stable.json`），`node.exe`、日志、PID 都在 `.stignore` 之外不会传去 Mac。
+- **Windows 上的 `fs.cpSync` 在该环境会静默失败**（返回成功但目录没建出来），`release.mjs` 改用手写递归复制，别换回 `cpSync`。
 
 ## 数据：lwk 的真实数据不在你的浏览器里
 

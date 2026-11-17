@@ -12,13 +12,33 @@
  *
  * 产物：releases/<时间>-<sha>/，并把 releases/current 指过去（稳定版服务读这个）。
  * 只保留最近 6 个版本。
+ *
+ * 跨平台：macOS/Linux 用 `git archive | tar` + 目录软链；
+ *         Windows 用 `git worktree` 导出提交 + junction（不需要管理员权限）。
  */
-import { execSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, unlinkSync } from 'node:fs'
+import { execSync, execFileSync } from 'node:child_process'
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+/**
+ * 递归复制目录。
+ * 不用 fs.cpSync：某些 Windows 环境（沙箱/安全软件）下它会静默失败——
+ * 返回成功但目标目录根本没建出来。手写版逐文件 copy，稳定。
+ */
+function copyDir(src, dest) {
+  mkdirSync(dest, { recursive: true })
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const from = path.join(src, entry.name)
+    const to = path.join(dest, entry.name)
+    if (entry.isDirectory()) copyDir(from, to)
+    else if (entry.isSymbolicLink()) continue
+    else copyFileSync(from, to)
+  }
+}
+
+const isWin = process.platform === 'win32'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const releasesDir = path.join(root, 'releases')
 const ref = process.argv[2] ?? 'HEAD'
@@ -34,24 +54,37 @@ const target = path.join(releasesDir, name)
 console.log(`[release] 从 ${ref} (${sha}) 构建：${subject}`)
 const tmp = mkdtempSync(path.join(tmpdir(), 'work-route-release-'))
 try {
-  execSync(`git archive ${ref} | tar -x -C ${JSON.stringify(tmp)}`, { cwd: root, shell: '/bin/bash' })
+  if (isWin) {
+    // Windows：用 worktree 从提交导出源码（不读工作区），避免依赖 bash/tar
+    execFileSync('git', ['worktree', 'add', '--detach', '--force', tmp, ref], { cwd: root, stdio: 'ignore' })
+  } else {
+    execSync(`git archive ${ref} | tar -x -C ${JSON.stringify(tmp)}`, { cwd: root, shell: '/bin/bash' })
+  }
   // 复用工作区的 node_modules（不在 git 里，但构建需要）
-  symlinkSync(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'), 'dir')
+  symlinkSync(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'), isWin ? 'junction' : 'dir')
   execSync('npm run build', { cwd: tmp, stdio: 'inherit' })
 
   mkdirSync(releasesDir, { recursive: true })
   rmSync(target, { recursive: true, force: true })
-  cpSync(path.join(tmp, 'dist'), target, { recursive: true })
+  copyDir(path.join(tmp, 'dist'), target)
 } finally {
+  if (isWin) {
+    try {
+      execFileSync('git', ['worktree', 'remove', '--force', tmp], { cwd: root, stdio: 'ignore' })
+    } catch {
+      /* worktree 元数据清不掉也不影响发布 */
+    }
+  }
   rmSync(tmp, { recursive: true, force: true })
 }
 
 // current 指向最新版
 const current = path.join(releasesDir, 'current')
 try {
-  unlinkSync(current)
+  // symlink（macOS）/ junction（Windows）都能被 rmSync 只删链接、不动目标
+  rmSync(current, { recursive: true, force: true })
 } catch {}
-symlinkSync(target, current, 'dir')
+symlinkSync(target, current, isWin ? 'junction' : 'dir')
 
 // 只留最近 6 个
 const versions = readdirSync(releasesDir)

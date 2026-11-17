@@ -11,7 +11,7 @@
  */
 import { createServer } from 'node:http'
 import { spawn, execFile } from 'node:child_process'
-import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch, openSync } from 'node:fs'
+import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch, openSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -136,6 +136,7 @@ async function handleRoutes(req, res) {
 
 /* ---------- 版本检测 + 自助更新 ---------- */
 const updateStateFile = path.join(root, 'data', 'update-state.json')
+const pidFile = path.join(root, 'data', 'stable-server.pid')
 let updateRunning = false
 
 /** 当前部署的版本 = releases/current 目录名里的短 sha */
@@ -273,7 +274,34 @@ const server = createServer(async (req, res) => {
 })
 
 server.listen(PORT, '127.0.0.1', () => {
+  // 记下自己的 PID：Windows 上没 launchd，重启服务靠 release-auto 读这个文件杀旧进程
+  try {
+    mkdirSync(path.dirname(pidFile), { recursive: true })
+    writeFileSync(pidFile, String(process.pid), 'utf8')
+  } catch {}
   const link = existsSync(currentDir) ? realpathSync(currentDir) : '(还没发布)'
   console.log(`[stable] 稳定版服务：http://127.0.0.1:${PORT}/`)
   console.log(`[stable] 当前版本：${path.basename(link)}`)
+  console.log(`[stable] 进程 PID：${process.pid}`)
 })
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[stable] 端口 ${PORT} 已被占用：可能已经有一个稳定版在跑了。本次不重复启动。`)
+    process.exit(0)
+  }
+  console.error(`[stable] 服务异常：${err.message}`)
+  process.exit(1)
+})
+
+// 退出时清掉 pid 文件（只清自己的，避免误删新进程的）
+function cleanup() {
+  try {
+    if (existsSync(pidFile) && readFileSync(pidFile, 'utf8').trim() === String(process.pid)) {
+      rmSync(pidFile, { force: true })
+    }
+  } catch {}
+}
+process.on('exit', cleanup)
+process.on('SIGINT', () => process.exit(0))
+process.on('SIGTERM', () => process.exit(0))
