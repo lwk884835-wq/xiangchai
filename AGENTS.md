@@ -24,11 +24,12 @@
 | 构建产物 | `git archive \| tar` + 目录软链 | `git worktree` 导出 + junction（不需要管理员） |
 | 服务常驻 | launchd `com.lwk.work-route-stable` | 计划任务 `想拆-稳定版`（登录时触发）→ `node scripts/win/supervisor.mjs` |
 | 重启服务 | `launchctl kickstart -k` | 杀 `data/stable-server.pid`，守护进程 2 秒后自动拉起 |
-| node 来源 | 系统 node | 项目内 `data/node/node.exe`（单文件复制，跟 WorkBuddy 版本解耦） |
+| node 来源 | 系统 node | 项目内 `runtime/node.exe`（单文件复制，跟 WorkBuddy 版本解耦；`runtime/` 已 gitignore） |
 
 - Windows 守护进程：跑 `stable-server.mjs` 子进程，退出就重启（等价 launchd KeepAlive），启动时若 5180 已被占用则自动退出。
 - Windows 日志：`data/stable-server.log`（服务输出）、`data/supervisor.pid`（守护 PID）、`data/stable-server.pid`（服务 PID）。
 - 本机安全策略拦 `wscript`/`cscript`/`powershell` 作为计划任务动作，所以守护用 **node** 写；别再改成 VBS/PS1。
+- `runtime/node.exe` 是 node 22 单文件运行时（84MB，已 gitignore），**不要提交**；重装时从 `~/.workbuddy/binaries/node/versions/<当前版本>/node.exe` 复制即可。
 - `data/` 被 Syncthing 同步（只同步 `routes-stable.json`），`node.exe`、日志、PID 都在 `.stignore` 之外不会传去 Mac。
 - **Windows 上的 `fs.cpSync` 在该环境会静默失败**（返回成功但目录没建出来），`release.mjs` 改用手写递归复制，别换回 `cpSync`。
 
