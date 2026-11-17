@@ -124,3 +124,4 @@ scripts/                  稳定版的构建与常驻服务
 `list_routes` 列路线、`read_route` 读树、`apply_plan_ops` 增删改、`move_nodes` 移动、`set_done` 勾选、`manage_routes` 管路线、`focus_items` 管重点、`find_code`/`list_codes` 按码定位。改完网页自动刷新。
 
 **注意**：改数据前先备份；所有 `board`/`node`/`id` 参数都能填 5 位码、id 或标题；数据文件里 `images` 存内嵌图片，写操作不要丢。
+# 更新日志位置：data/update.log（触发更新时自动写入，排查用）
