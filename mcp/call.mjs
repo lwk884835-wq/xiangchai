@@ -3,13 +3,13 @@
  * 手动调一次 MCP 工具（调试/演示用）：
  *   node call.mjs list_routes
  *   node call.mjs read_route '{"board":"我的路线"}'
- * 默认读写 ../data/routes.json，可用 ROUTE_DATA_FILE 覆盖。
+ * 数据文件与服务端同一套优先级（ROUTE_DATA_FILE → routes-stable.json → routes.json），
+ * 别再在这里写死开发版路径，否则读到的不是 lwk 的真实数据。
  */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { resolve } from 'node:path'
-
-const dataFile = process.env.ROUTE_DATA_FILE ?? resolve(import.meta.dirname, '..', 'data', 'routes.json')
+import { dataFile } from './routeCore.mjs'
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [resolve(import.meta.dirname, 'server.mjs')],
