@@ -21,6 +21,7 @@ import { codeOf, copyText, looksLikeCode } from '@/lib/code'
 import { buildCodeIndex, findCodeHits, type CodeHit } from '@/lib/codeIndex'
 import { clearDeepLink, copyNoteLink, readDeepLink } from '@/lib/deepLink'
 import { FocusList } from '@/components/action/FocusList'
+import { UpdateButton } from '@/components/UpdateButton'
 import { RouteBoard } from '@/components/action/RouteBoard'
 import { NodeDrawer } from '@/components/action/NodeDrawer'
 import { BoardList } from '@/components/action/BoardList'
@@ -468,6 +469,7 @@ export function RoutePage() {
           )}
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <UpdateButton />
             <div ref={themeMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setThemeMenu((v) => !v)}

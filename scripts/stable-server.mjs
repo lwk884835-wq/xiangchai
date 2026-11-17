@@ -10,6 +10,7 @@
  *
  */
 import { createServer } from 'node:http'
+import { spawn, execFile } from 'node:child_process'
 import { readFileSync, existsSync, realpathSync, statSync, mkdirSync, renameSync, writeFileSync, watch } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -133,6 +134,105 @@ async function handleRoutes(req, res) {
   res.end()
 }
 
+/* ---------- 版本检测 + 自助更新 ---------- */
+const updateStateFile = path.join(root, 'data', 'update-state.json')
+let updateRunning = false
+
+/** 当前部署的版本 = releases/current 目录名里的短 sha */
+function deployedVersion() {
+  try {
+    const link = realpathSync(currentDir)
+    const m = path.basename(link).match(/-([0-9a-f]{7,})$/i)
+    return m ? m[1] : path.basename(link)
+  } catch {
+    return null
+  }
+}
+
+function readUpdateState() {
+  try {
+    return JSON.parse(readFileSync(updateStateFile, 'utf8'))
+  } catch {
+    return { phase: 'idle' }
+  }
+}
+
+/** git fetch 只更新 origin 引用，不动工作区；结果缓存 2 分钟，避免每次开页面都跑 */
+let remoteCache = { sha: null, at: 0 }
+const REMOTE_TTL = 2 * 60 * 1000
+function fetchRemote(force = false) {
+  return new Promise((resolve) => {
+    if (!force && Date.now() - remoteCache.at < REMOTE_TTL) return resolve(remoteCache)
+    execFile(
+      'git',
+      ['fetch', '--quiet', 'origin', 'main'],
+      { cwd: root, timeout: 25000 },
+      (fetchErr) => {
+        // fetch 失败也用上一次的缓存，别让页面因为断网白等
+        execFile(
+          'git',
+          ['rev-parse', 'origin/main'],
+          { cwd: root },
+          (err, stdout) => {
+            if (!err && stdout.trim()) {
+              remoteCache = { sha: stdout.trim(), at: Date.now() }
+            } else if (!remoteCache.sha) {
+              remoteCache = { sha: null, at: Date.now(), error: fetchErr?.message || err?.message || '无法读取远端' }
+            }
+            resolve(remoteCache)
+          },
+        )
+      },
+    )
+  })
+}
+
+async function handleVersion(req, res) {
+  const force = (req.url ?? '').includes('force=1')
+  const cache = await fetchRemote(force)
+  const deployed = deployedVersion()
+  const remote = cache.sha ? cache.sha.slice(0, 7) : null
+  const update = readUpdateState()
+  const response = {
+    deployed,
+    remote,
+    hasUpdate: Boolean(deployed && remote && deployed !== remote),
+    updateRunning,
+    update,
+    checkedAt: cache.at,
+    error: cache.error ?? null,
+  }
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify(response))
+}
+
+function handleUpdate(req, res) {
+  if (req.method !== 'POST') {
+    res.statusCode = 405
+    res.end(JSON.stringify({ error: '请用 POST' }))
+    return
+  }
+  if (updateRunning) {
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ ok: true, already: true }))
+    return
+  }
+  updateRunning = true
+  // 脱离 5180 的独立进程：服务重启也不会把它带走
+  const child = spawn(process.execPath, [path.join(root, 'scripts', 'update.mjs')], {
+    cwd: root,
+    detached: true,
+    stdio: 'ignore',
+    env: process.env,
+  })
+  child.unref()
+  setTimeout(() => {
+    updateRunning = false
+  }, 5000)
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify({ ok: true }))
+}
+
 function serveStatic(req, res) {
   let base = currentDir
   if (existsSync(currentDir)) base = realpathSync(currentDir)
@@ -157,6 +257,14 @@ function serveStatic(req, res) {
 const server = createServer(async (req, res) => {
   if (req.url?.startsWith('/api/routes')) {
     await handleRoutes(req, res)
+    return
+  }
+  if (req.url?.startsWith('/api/version')) {
+    await handleVersion(req, res)
+    return
+  }
+  if (req.url?.startsWith('/api/update')) {
+    handleUpdate(req, res)
     return
   }
   serveStatic(req, res)
