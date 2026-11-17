@@ -101,3 +101,4 @@ try {
   log(`error: ${raw}`)
   process.exit(1)
 }
+// 更新功能运行时标记：stdio 日志 + PATH 修复已验证
