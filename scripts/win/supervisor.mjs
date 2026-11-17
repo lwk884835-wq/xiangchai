@@ -10,25 +10,49 @@
  * 为什么不用 VBS / PowerShell 启动器：本机安全策略拦了 wscript/cscript，
  * node 作为计划任务动作是验证过可用的。
  *
- * 由计划任务「想拆-稳定版」在登录时调用：
- *   node scripts/win/supervisor.mjs
+ * ⚠️ 关于黑框：计划任务直接拉起 node.exe 会带一个控制台窗口（黑框），
+ * 而控制台窗口属于 conhost.exe，从 node 进程查窗口句柄查不到。
+ * 所以这里做「自重生」：第一次被拉起时立刻以隐藏窗口的方式重新启动自己再退出，
+ * 前台那个黑框随之关闭。带 XC_SUPERVISOR_DETACHED=1 的那个才是真正常驻的守护。
+ *
+ * 由计划任务「想拆-稳定版」在登录时 / 每 2 分钟巡检时调用。
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const self = fileURLToPath(import.meta.url)
+const root = path.resolve(path.dirname(self), '..', '..')
 const server = path.join(root, 'scripts', 'stable-server.mjs')
 const dataDir = path.join(root, 'data')
 const logFile = path.join(dataDir, 'stable-server.log')
 const supPidFile = path.join(dataDir, 'supervisor.pid')
 const PORT = 5180
+const DETACHED = process.env.XC_SUPERVISOR_DETACHED === '1'
 
 const log = (m) => console.log(`[supervisor] ${m}`)
 
 mkdirSync(dataDir, { recursive: true })
-writeFileSync(supPidFile, String(process.pid), 'utf8')
+
+function pidAlive(pid) {
+  if (!pid) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 已有守护在跑就不再起第二个 */
+function existingSupervisor() {
+  try {
+    const pid = Number(readFileSync(supPidFile, 'utf8').trim())
+    if (pid && pid !== process.pid && pidAlive(pid)) return pid
+  } catch {}
+  return null
+}
 
 function portAlive() {
   return new Promise((resolve) => {
@@ -40,6 +64,30 @@ function portAlive() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function main() {
+  // 1) 已有守护在跑 → 直接退出（计划任务每 2 分钟巡检会走到这里）
+  const running = existingSupervisor()
+  if (running) {
+    log(`已有守护进程在运行（PID ${running}），本次退出`)
+    return
+  }
+
+  // 2) 被计划任务直接拉起（有控制台黑框）→ 隐藏窗口重生自己，再关掉这个黑框
+  if (!DETACHED && process.platform === 'win32') {
+    const fd = openSync(logFile, 'a')
+    const child = spawn(process.execPath, [self], {
+      cwd: root,
+      detached: true,
+      windowsHide: true,
+      stdio: ['ignore', fd, fd],
+      env: { ...process.env, XC_SUPERVISOR_DETACHED: '1' },
+    })
+    child.unref()
+    return
+  }
+
+  // 3) 真正常驻：记 PID、盯住 stable-server
+  writeFileSync(supPidFile, String(process.pid), 'utf8')
+
   if (await portAlive()) {
     log(`端口 ${PORT} 已有服务在跑，本次不重复启动`)
     return

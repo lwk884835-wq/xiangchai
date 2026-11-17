@@ -27,6 +27,7 @@
 | node 来源 | 系统 node | 项目内 `runtime/node.exe`（单文件复制，跟 WorkBuddy 版本解耦；`runtime/` 已 gitignore） |
 
 - Windows 守护进程：跑 `stable-server.mjs` 子进程，退出就重启（等价 launchd KeepAlive），启动时若 5180 已被占用则自动退出。
+- **绝对不能留黑框**：计划任务直接拉起 `node.exe` 会弹一个控制台窗口（控制台窗口属于 `conhost.exe`，从 node 进程查 `MainWindowHandle` 查不到，别用那种方式自检）。现在的做法是双保险：任务动作用 `conhost.exe --headless` 启动；`supervisor.mjs` 自己也会检测到有控制台时以隐藏窗口重生一次再退出。以后改这块务必保持无窗口，改完用「枚举所有 conhost 的 MainWindowHandle ≠ 0」来验证。
 - Windows 日志：`data/stable-server.log`（服务输出）、`data/supervisor.pid`（守护 PID）、`data/stable-server.pid`（服务 PID）。
 - 本机安全策略拦 `wscript`/`cscript`/`powershell` 作为计划任务动作，所以守护用 **node** 写；别再改成 VBS/PS1。
 - `runtime/node.exe` 是 node 22 单文件运行时（84MB，已 gitignore），**不要提交**；重装时从 `~/.workbuddy/binaries/node/versions/<当前版本>/node.exe` 复制即可。
